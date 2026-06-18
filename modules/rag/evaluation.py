@@ -1,13 +1,19 @@
 from __future__ import annotations
-from datasets import Dataset
-from ragas import evaluate
-from ragas.metrics import (
-    faithfulness,
-    answer_relevancy,
-    context_precision,
-    context_recall,
-    answer_correctness,
-)
+
+try:
+    from datasets import Dataset
+    from ragas import evaluate as _ragas_evaluate
+    from ragas.metrics import (
+        faithfulness,
+        answer_relevancy,
+        context_precision,
+        context_recall,
+        answer_correctness,
+    )
+    _RAGAS_AVAILABLE = True
+except ImportError:
+    _RAGAS_AVAILABLE = False
+
 
 class RAGEvaluator:
     """Evaluates RAG pipeline quality using RAGAS metrics."""
@@ -24,6 +30,8 @@ class RAGEvaluator:
         ground_truths: list[str] | None = None,
     ) -> dict:
         """Run RAGAS evaluation. Returns dict of metric scores."""
+        if not _RAGAS_AVAILABLE:
+            raise ImportError("ragas is not available — install with: pip install ragas")
         data: dict = {
             "question": questions,
             "answer": answers,
@@ -37,7 +45,7 @@ class RAGEvaluator:
         if ground_truths:
             metrics += [context_recall, answer_correctness]
 
-        result = evaluate(dataset=dataset, metrics=metrics)
+        result = _ragas_evaluate(dataset=dataset, metrics=metrics)
         return result.to_pandas().mean().to_dict()
 
     def evaluate_single(
