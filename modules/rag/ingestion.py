@@ -1,14 +1,18 @@
 from __future__ import annotations
 from pathlib import Path
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, UnstructuredFileLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.schema import Document
-import chromadb
 import time
 
-EMBEDDINGS = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+_EMBEDDINGS: HuggingFaceEmbeddings | None = None
+
+def _get_embeddings() -> HuggingFaceEmbeddings:
+    global _EMBEDDINGS
+    if _EMBEDDINGS is None:
+        _EMBEDDINGS = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    return _EMBEDDINGS
 
 class DocumentIngester:
     """Ingests documents into ChromaDB via LangChain loaders and splitters."""
@@ -23,7 +27,7 @@ class DocumentIngester:
         )
         self.vectorstore = Chroma(
             collection_name=collection_name,
-            embedding_function=EMBEDDINGS,
+            embedding_function=_get_embeddings(),
             persist_directory=persist_directory,
         )
 

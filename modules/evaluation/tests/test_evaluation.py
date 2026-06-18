@@ -2,6 +2,9 @@ from __future__ import annotations
 import pytest
 from unittest.mock import patch, MagicMock
 
+deepeval = pytest.importorskip("deepeval", reason="deepeval not available")
+
+
 def test_rag_evaluator_single():
     """RAGEvaluator returns expected score keys."""
     from modules.evaluation.rag_evaluator import RAGEvaluator

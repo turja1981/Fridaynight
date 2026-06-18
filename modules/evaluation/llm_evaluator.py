@@ -1,13 +1,24 @@
 from __future__ import annotations
-from deepeval import evaluate as deepeval_evaluate
-from deepeval.test_case import LLMTestCase
-from deepeval.metrics import (
-    HallucinationMetric,
-    AnswerRelevancyMetric,
-    FaithfulnessMetric,
-    BiasMetric,
-    ToxicityMetric,
-)
+
+try:
+    from deepeval import evaluate as deepeval_evaluate
+    from deepeval.test_case import LLMTestCase
+    from deepeval.metrics import (
+        HallucinationMetric,
+        AnswerRelevancyMetric,
+        FaithfulnessMetric,
+        BiasMetric,
+        ToxicityMetric,
+    )
+    _DEEPEVAL_AVAILABLE = True
+except ImportError:
+    _DEEPEVAL_AVAILABLE = False
+    HallucinationMetric = None
+    AnswerRelevancyMetric = None
+    FaithfulnessMetric = None
+    BiasMetric = None
+    ToxicityMetric = None
+
 
 class LLMEvaluator:
     """DeepEval-based LLM output quality evaluator."""
@@ -22,7 +33,9 @@ class LLMEvaluator:
         actual_output: str,
         expected_output: str | None = None,
         retrieval_context: list[str] | None = None,
-    ) -> LLMTestCase:
+    ):
+        if not _DEEPEVAL_AVAILABLE:
+            raise ImportError("deepeval is not available in this environment")
         return LLMTestCase(
             input=input_text,
             actual_output=actual_output,

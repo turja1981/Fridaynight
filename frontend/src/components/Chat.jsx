@@ -78,6 +78,15 @@ function AssistantMessage({ msg }) {
         <Cpu className="w-3.5 h-3.5 text-indigo-400" />
       </div>
       <div className="max-w-[80%] flex-1">
+        {/* Active tool call badge */}
+        {msg.activeToolCall && (
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <MessageBadge color="amber">
+              <Cpu className="w-2.5 h-2.5 animate-pulse" />
+              Tool: {msg.activeToolCall}...
+            </MessageBadge>
+          </div>
+        )}
         <div className={`border rounded-2xl rounded-tl-none px-4 py-3 text-sm leading-relaxed
           ${msg.isError
             ? 'bg-red-950 border-red-800 text-red-300'
@@ -90,11 +99,14 @@ function AssistantMessage({ msg }) {
             prose-a:text-indigo-400 prose-strong:text-gray-100
             prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5">
             <ReactMarkdown>{msg.content}</ReactMarkdown>
+            {msg.streaming && (
+              <span className="inline-block w-0.5 h-4 ml-0.5 bg-indigo-400 align-text-bottom animate-pulse">▌</span>
+            )}
           </div>
         </div>
 
         {/* Metadata footer */}
-        {!msg.isError && (meta.model || meta.latency || meta.tokens) && (
+        {!msg.isError && !msg.streaming && (meta.model || meta.latency || meta.tokens) && (
           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
             {meta.model && (
               <MessageBadge color="indigo">
@@ -166,7 +178,8 @@ function EmptyState({ adapter }) {
 }
 
 export default function Chat({ adapter = 'default' }) {
-  const { messages, isLoading, sendMessage, clearChat } = useChat()
+  const { messages, isLoading, sendMessageStreaming, clearChat } = useChat()
+  const sendMessage = sendMessageStreaming
   const [inputText, setInputText] = useState('')
   const [attachedImage, setAttachedImage] = useState(null)
   const [showFileUpload, setShowFileUpload] = useState(false)
@@ -270,7 +283,7 @@ export default function Chat({ adapter = 'default' }) {
                 <AssistantMessage key={msg.id} msg={msg} />
               )
             )}
-            {isLoading && <TypingIndicator />}
+            {isLoading && !messages.some(m => m.streaming) && <TypingIndicator />}
             <div ref={messagesEndRef} />
           </>
         )}

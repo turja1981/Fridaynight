@@ -75,6 +75,83 @@ export function useChat() {
     }
   }, [sessionId])
 
+  const sendMessageStreaming = useCallback(async (text, adapter = 'default') => {
+    const userMsg = { role: 'user', content: text, id: uuidv4(), timestamp: new Date().toISOString() }
+    setMessages(prev => [...prev, userMsg])
+
+    // Add placeholder assistant message
+    const assistantId = uuidv4()
+    setMessages(prev => [...prev, { role: 'assistant', content: '', id: assistantId, streaming: true, timestamp: new Date().toISOString() }])
+    setIsLoading(true)
+
+    try {
+      const token = localStorage.getItem('eap_token')
+      const response = await fetch('/api/v1/chat/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message: text, adapter, session_id: sessionId }),
+      })
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let metadata = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const event = JSON.parse(line.slice(6))
+            if (event.type === 'token') {
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId ? { ...m, content: m.content + event.chunk } : m
+              ))
+            } else if (event.type === 'tool_start') {
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId ? { ...m, activeToolCall: event.tool } : m
+              ))
+            } else if (event.type === 'tool_end') {
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId ? { ...m, activeToolCall: null } : m
+              ))
+            } else if (event.type === 'done') {
+              metadata = event.metadata
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId
+                  ? { ...m, streaming: false, activeToolCall: null, metadata: {
+                      latency: metadata.latency_ms,
+                      model: metadata.model_used,
+                      tool_calls: metadata.tool_calls || [],
+                      tokens: null,
+                    }}
+                  : m
+              ))
+            } else if (event.type === 'error') {
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId ? { ...m, content: `Error: ${event.message}`, streaming: false, isError: true, activeToolCall: null } : m
+              ))
+            }
+          } catch {}
+        }
+      }
+    } catch (err) {
+      setMessages(prev => prev.map(m =>
+        m.id === assistantId ? { ...m, content: 'Connection error. Please try again.', streaming: false, isError: true, activeToolCall: null } : m
+      ))
+    } finally {
+      setIsLoading(false)
+    }
+  }, [sessionId])
+
   const clearChat = useCallback(() => {
     setMessages([])
   }, [])
@@ -84,6 +161,7 @@ export function useChat() {
     isLoading,
     sessionId,
     sendMessage,
+    sendMessageStreaming,
     clearChat
   }
 }

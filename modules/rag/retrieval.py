@@ -1,9 +1,14 @@
 from __future__ import annotations
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.schema import Document
 
-EMBEDDINGS = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+_EMBEDDINGS: HuggingFaceEmbeddings | None = None
+
+def _get_embeddings() -> HuggingFaceEmbeddings:
+    global _EMBEDDINGS
+    if _EMBEDDINGS is None:
+        _EMBEDDINGS = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    return _EMBEDDINGS
 
 class VectorRetriever:
     """Semantic retriever backed by ChromaDB via LangChain."""
@@ -11,7 +16,7 @@ class VectorRetriever:
     def __init__(self, collection_name: str = "enterprise_docs", persist_directory: str = "./data/chroma"):
         self.vectorstore = Chroma(
             collection_name=collection_name,
-            embedding_function=EMBEDDINGS,
+            embedding_function=_get_embeddings(),
             persist_directory=persist_directory,
         )
 

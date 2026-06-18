@@ -35,7 +35,7 @@ async def logging_middleware(request: Request, call_next):
 async def app_exception_handler(request: Request, exc: AppException):
     return JSONResponse(status_code=exc.status_code, content={"error": exc.code, "message": exc.message})
 
-from backend.api.routes import auth, chat, rag, agents, kpi, multimodal, memory
+from backend.api.routes import auth, chat, rag, agents, kpi, multimodal, memory, audit, hitl
 from modules.mcp.server import mcp_router
 
 app.include_router(auth.router, prefix="/api/v1")
@@ -45,6 +45,8 @@ app.include_router(agents.router, prefix="/api/v1")
 app.include_router(kpi.router, prefix="/api/v1")
 app.include_router(multimodal.router, prefix="/api/v1")
 app.include_router(memory.router, prefix="/api/v1")
+app.include_router(audit.router, prefix="/api/v1")
+app.include_router(hitl.router, prefix="/api/v1")
 app.include_router(mcp_router, prefix="/api/v1")
 
 @app.get("/health")

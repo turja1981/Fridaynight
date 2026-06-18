@@ -42,3 +42,18 @@ export const transcribeVoice = (audioBlob) => {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
 }
+
+export const runHITLTask = (task, adapter, userId) =>
+  apiClient.post('/hitl/run', { task, adapter, user_id: userId })
+
+export const approveHITLTask = (taskId, reviewerNote = '') =>
+  apiClient.post(`/hitl/${taskId}/approve`, { reviewer_note: reviewerNote })
+
+export const rejectHITLTask = (taskId, reason = '') =>
+  apiClient.post(`/hitl/${taskId}/reject`, { reason })
+
+export const getAuditLogs = (params = {}) =>
+  apiClient.get('/audit/logs', { params })
+
+export const getAuditSummary = () =>
+  apiClient.get('/audit/summary')
