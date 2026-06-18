@@ -1,0 +1,8 @@
+# Optional: deepeval for LLM quality evaluation
+# Install separately AFTER the main requirements:
+#   pip install -r requirements-deepeval.txt
+#
+# NOTE: deepeval 2.x imports `from langchain.schema import HumanMessage`
+# which was removed in langchain 1.x. The evaluation module handles missing
+# deepeval gracefully (pytest.importorskip + try/except).
+deepeval>=0.21.0
