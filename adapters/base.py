@@ -1,21 +1,18 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 
-
+@dataclass
 class BaseAdapter(ABC):
-    """Abstract base class for domain adapters."""
-
+    """Base class for domain-specific hackathon adapters."""
     domain_name: str = ""
     system_prompt: str = ""
-    kpi_definitions: dict[str, str] = {}
-    suggested_tools: list[str] = []
-    sample_questions: list[str] = []
+    kpi_definitions: dict[str, str] = field(default_factory=dict)
+    suggested_tools: list[str] = field(default_factory=list)
+    sample_questions: list[str] = field(default_factory=list)
 
     @abstractmethod
-    def get_config(self) -> dict:
-        """Return adapter configuration dict."""
-        ...
+    def get_config(self) -> dict: ...
 
     def get_sample_context(self) -> str:
-        """Return domain-specific context text for demo purposes."""
-        return f"Domain: {self.domain_name}\nThis adapter provides {self.domain_name} capabilities."
+        return f"Domain: {self.domain_name}"
