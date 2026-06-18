@@ -2,8 +2,6 @@ from __future__ import annotations
 import time
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
 from .ingestion import DocumentIngester
 from .hybrid import HybridRetriever
 
@@ -32,25 +30,17 @@ class RagPipeline:
         self.ingester = DocumentIngester(collection_name, persist_directory)
         self.retriever = HybridRetriever(collection_name, persist_directory)
         self.llm = ChatAnthropic(model=model, api_key=anthropic_api_key, max_tokens=1024)
-        self._chain = (
-            {"context": self._get_context, "question": RunnablePassthrough()}
-            | RAG_PROMPT
-            | self.llm
-            | StrOutputParser()
-        )
-
-    def _get_context(self, question: str) -> str:
-        results = self.retriever.retrieve(question, top_k=5)
-        return "\n\n".join(r["content"] for r in results)
 
     def run(self, query: str) -> dict:
         """Run the full RAG pipeline and return response with metadata."""
         t0 = time.time()
         results = self.retriever.retrieve(query, top_k=5)
         context = "\n\n".join(r["content"] for r in results)
-        response = self._chain.invoke(query)
+        prompt_value = RAG_PROMPT.invoke({"context": context, "question": query})
+        response = self.llm.invoke(prompt_value)
+        answer = getattr(response, "content", str(response))
         return {
-            "answer": response,
+            "answer": answer,
             "context": context,
             "sources": [r.get("metadata", {}).get("source", "unknown") for r in results],
             "retrieval_time_ms": round((time.time() - t0) * 1000, 2),
