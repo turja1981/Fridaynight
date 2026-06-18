@@ -1,72 +1,52 @@
 from __future__ import annotations
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+import time
 
 from backend.config import settings
-from backend.api.routes import auth, chat, rag, agents, kpi, multimodal
-from modules.mcp.server import router as mcp_router
-from modules.logging_obs.structured import setup_logging
-from modules.logging_obs.structured import get_logger
-from modules.logging_obs.exceptions import handle_exception, AppException
+from modules.logging_obs import setup_logging, get_logger
+from modules.logging_obs.exceptions import AppException
+from modules.observability import setup_langsmith
 
-app = FastAPI(
-    title="Enterprise AI Platform",
-    version="1.0.0",
-    description="TCS Hackathon — Pluggable Enterprise AI Platform",
+setup_logging(settings.log_level)
+logger = get_logger("main")
+
+_langsmith_enabled = setup_langsmith(
+    api_key=settings.langchain_api_key,
+    project=settings.langchain_project,
 )
+if _langsmith_enabled:
+    logger.info("langsmith_tracing_enabled", project=settings.langchain_project)
 
-# CORS — allow all origins for hackathon demo
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app = FastAPI(title="Enterprise AI Platform", version="1.0.0", description="TCS Hackathon — Modular AI Platform")
 
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-@app.on_event("startup")
-async def startup_event() -> None:
-    """Initialize logging and log startup."""
-    setup_logging(settings.log_level)
-    logger = get_logger("main")
-    logger.info("Platform started", adapter=settings.active_adapter, version="1.0.0")
-
+@app.middleware("http")
+async def logging_middleware(request: Request, call_next):
+    t0 = time.time()
+    response = await call_next(request)
+    duration_ms = round((time.time() - t0) * 1000, 2)
+    logger.info("http_request", method=request.method, path=request.url.path, status=response.status_code, duration_ms=duration_ms)
+    return response
 
 @app.exception_handler(AppException)
-async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
-    """Handle application exceptions."""
-    return handle_exception(exc)
+async def app_exception_handler(request: Request, exc: AppException):
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.code, "message": exc.message})
 
+from backend.api.routes import auth, chat, rag, agents, kpi, multimodal, memory
+from modules.mcp.server import mcp_router
 
-@app.exception_handler(Exception)
-async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Handle unexpected exceptions."""
-    return handle_exception(exc)
-
-
-# Include routers
-app.include_router(auth.router)
-app.include_router(chat.router)
-app.include_router(rag.router)
-app.include_router(agents.router)
-app.include_router(kpi.router)
-app.include_router(multimodal.router)
-app.include_router(mcp_router)
-
-
-# Add logging middleware after routers
-from backend.api.middleware.logging_middleware import LoggingMiddleware
-app.add_middleware(LoggingMiddleware)
-
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(chat.router, prefix="/api/v1")
+app.include_router(rag.router, prefix="/api/v1")
+app.include_router(agents.router, prefix="/api/v1")
+app.include_router(kpi.router, prefix="/api/v1")
+app.include_router(multimodal.router, prefix="/api/v1")
+app.include_router(memory.router, prefix="/api/v1")
+app.include_router(mcp_router, prefix="/api/v1")
 
 @app.get("/health")
-async def health_check() -> dict:
-    """Health check endpoint."""
-    return {
-        "status": "ok",
-        "version": "1.0.0",
-        "adapter": settings.active_adapter,
-    }
+async def health():
+    return {"status": "ok", "version": "1.0.0", "adapter": settings.active_adapter}

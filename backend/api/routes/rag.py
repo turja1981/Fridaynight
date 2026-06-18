@@ -1,69 +1,31 @@
 from __future__ import annotations
-import os
-import tempfile
-
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, UploadFile, File
 from pydantic import BaseModel
+from backend.config import settings
+from modules.rag import RagPipeline, DocumentIngester
+import tempfile, os
 
-router = APIRouter(prefix="/api/v1/rag", tags=["rag"])
+router = APIRouter(tags=["rag"])
+_pipeline = RagPipeline(persist_directory=settings.chroma_path, anthropic_api_key=settings.anthropic_api_key)
+_ingester = DocumentIngester(persist_directory=settings.chroma_path)
 
+@router.post("/rag/ingest")
+async def ingest_document(file: UploadFile = File(...)):
+    content = await file.read()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+    try:
+        ids = _ingester.ingest_file(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+    return {"status": "ok", "chunks_added": len(ids), "filename": file.filename}
 
-class QueryRequest(BaseModel):
-    """RAG query request."""
+class RagQuery(BaseModel):
     query: str
     top_k: int = 5
 
-
-@router.post("/ingest")
-async def ingest_document(file: UploadFile = File(...)) -> dict:
-    """Ingest a document (PDF or text) into the RAG knowledge base."""
-    from modules.rag.pipeline import RagPipeline
-    from backend.config import settings
-
-    allowed_types = {"application/pdf", "text/plain"}
-    if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Unsupported file type: {file.content_type}. Allowed: PDF, plain text",
-        )
-
-    content = await file.read()
-    pipeline = RagPipeline(chroma_path=settings.chroma_path)
-
-    suffix = ".pdf" if file.content_type == "application/pdf" else ".txt"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp.write(content)
-        tmp_path = tmp.name
-
-    try:
-        ingester = pipeline._ingester
-        ids = ingester.ingest_file(tmp_path)
-        return {
-            "status": "success",
-            "file_name": file.name,
-            "chunk_count": len(ids),
-            "chunk_ids": ids[:5],  # return first 5 IDs
-        }
-    finally:
-        os.unlink(tmp_path)
-
-
-@router.post("/query")
-async def query_rag(body: QueryRequest) -> dict:
-    """Query the RAG knowledge base."""
-    from modules.rag.pipeline import RagPipeline
-    from backend.config import settings
-
-    pipeline = RagPipeline(chroma_path=settings.chroma_path)
-    result = pipeline.run(body.query, context_window=4000)
-
-    # Also get raw results
-    raw_results = pipeline._retriever.retrieve(body.query, top_k=body.top_k)
-
-    return {
-        "query": body.query,
-        "context": result["context"],
-        "sources": result["sources"],
-        "retrieval_time_ms": result["retrieval_time_ms"],
-        "results": raw_results,
-    }
+@router.post("/rag/query")
+async def query_rag(req: RagQuery):
+    result = _pipeline.run(req.query)
+    return result

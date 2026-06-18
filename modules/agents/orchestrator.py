@@ -44,10 +44,16 @@ def _route_task(task: str) -> str:
 class AgentOrchestrator:
     """Multi-agent supervisor that routes tasks to specialized LangGraph agents."""
 
-    def __init__(self, model: str = "claude-sonnet-4-6", anthropic_api_key: str = ""):
+    def __init__(self, model: str = "claude-sonnet-4-6", anthropic_api_key: str = "", mem0_api_key: str = ""):
         self.model = model
         self.api_key = anthropic_api_key
         self._agents: dict = {}
+        # Lazy import to avoid hard dependency at module load time
+        try:
+            from modules.memory import AgentMemoryManager
+            self._memory = AgentMemoryManager(anthropic_api_key=anthropic_api_key, mem0_api_key=mem0_api_key)
+        except Exception:
+            self._memory = None
 
     def _get_agent(self, name: str):
         if name not in self._agents:
@@ -59,17 +65,32 @@ class AgentOrchestrator:
     def route(self, task: str) -> str:
         return _route_task(task)
 
-    def run(self, task: str, agent_type: str = "auto") -> dict:
-        """Route task to best agent and return result."""
+    def run(self, task: str, agent_type: str = "auto", user_id: str = "default") -> dict:
+        """Route task to best agent, inject Mem0 memory context, store result."""
         chosen = agent_type if agent_type != "auto" else _route_task(task)
         if chosen not in AGENT_CONFIGS:
             chosen = "domain_expert"
 
         cfg = AGENT_CONFIGS[chosen]
         agent = self._get_agent(chosen)
-        messages = [SystemMessage(content=cfg["system"]), HumanMessage(content=task)]
+
+        # Inject relevant memories from Mem0 into the system prompt
+        system = cfg["system"]
+        if self._memory:
+            mem_context = self._memory.build_memory_context(task, user_id)
+            if mem_context:
+                system = f"{system}\n\n{mem_context}"
+
+        messages = [SystemMessage(content=system), HumanMessage(content=task)]
         result = agent.invoke({"messages": messages})
         final = result["messages"][-1].content
+
+        # Persist this turn to Mem0
+        if self._memory:
+            self._memory.add(
+                [{"role": "user", "content": task}, {"role": "assistant", "content": final}],
+                user_id=user_id,
+            )
 
         tool_calls = [
             {"tool": m.name, "input": m.content}

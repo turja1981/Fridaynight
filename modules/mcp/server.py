@@ -1,71 +1,31 @@
 from __future__ import annotations
-from typing import Any
-
 from fastapi import APIRouter
+from pydantic import BaseModel
+from modules.agents.tools import get_all_tools
 
-from modules.agents.tools import ToolRegistry
+mcp_router = APIRouter(prefix="/mcp", tags=["mcp"])
 
-router = APIRouter(prefix="/mcp", tags=["mcp"])
+TOOL_DESCRIPTIONS = {
+    t.name: {"name": t.name, "description": t.description, "input_schema": {"type": "object", "properties": {}}}
+    for t in get_all_tools()
+}
 
+class MCPRequest(BaseModel):
+    jsonrpc: str = "2.0"
+    method: str
+    params: dict = {}
+    id: int = 1
 
-class MCPServer:
-    """MCP server implemented as a FastAPI APIRouter."""
+@mcp_router.post("/tools/list")
+async def list_tools():
+    return {"jsonrpc": "2.0", "result": {"tools": list(TOOL_DESCRIPTIONS.values())}, "id": 1}
 
-    def __init__(self) -> None:
-        self._registry = ToolRegistry()
-        self.router = router
-        self._register_routes()
-
-    def _register_routes(self) -> None:
-        registry = self._registry
-
-        @router.post("/tools/list")
-        async def list_tools(request: dict = None) -> dict:
-            """List available tools in MCP format."""
-            tools = registry.get_all_tools()
-            mcp_tools = [
-                {
-                    "name": t["name"],
-                    "description": t["description"],
-                    "inputSchema": t["input_schema"],
-                }
-                for t in tools
-            ]
-            return {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "result": {"tools": mcp_tools},
-            }
-
-        @router.post("/tools/call")
-        async def call_tool(body: dict) -> dict:
-            """Execute a tool by name with given arguments."""
-            # Support both direct and jsonrpc format
-            method = body.get("method", "tools/call")
-            params = body.get("params", body)
-            tool_name = params.get("name", "")
-            arguments = params.get("arguments", {})
-
-            if not tool_name:
-                return {
-                    "jsonrpc": "2.0",
-                    "id": body.get("id", 1),
-                    "error": {"code": -32602, "message": "Missing tool name"},
-                }
-
-            try:
-                result = registry.execute(tool_name, arguments)
-                return {
-                    "jsonrpc": "2.0",
-                    "id": body.get("id", 1),
-                    "result": {
-                        "content": [{"type": "text", "text": result}],
-                        "isError": False,
-                    },
-                }
-            except Exception as e:
-                return {
-                    "jsonrpc": "2.0",
-                    "id": body.get("id", 1),
-                    "error": {"code": -32000, "message": str(e)},
-                }
+@mcp_router.post("/tools/call")
+async def call_tool(req: MCPRequest):
+    tool_name = req.params.get("name")
+    args = req.params.get("arguments", {})
+    tools = {t.name: t for t in get_all_tools()}
+    if tool_name not in tools:
+        return {"jsonrpc": "2.0", "error": {"code": -32601, "message": f"Tool {tool_name} not found"}, "id": req.id}
+    result = tools[tool_name].invoke(args)
+    return {"jsonrpc": "2.0", "result": {"content": [{"type": "text", "text": str(result)}]}, "id": req.id}
