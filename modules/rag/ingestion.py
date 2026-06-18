@@ -1,89 +1,54 @@
 from __future__ import annotations
-import uuid
-import time
-from datetime import datetime
 from pathlib import Path
-from typing import Optional
-
+from langchain_community.document_loaders import PyPDFLoader, TextLoader, UnstructuredFileLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_chroma import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain.schema import Document
 import chromadb
-from sentence_transformers import SentenceTransformer
+import time
 
-COLLECTION_NAME = "enterprise_docs"
-CHUNK_SIZE = 512  # words
-CHUNK_OVERLAP = 50  # words
-
+EMBEDDINGS = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 class DocumentIngester:
-    """Ingests documents into ChromaDB with embeddings."""
+    """Ingests documents into ChromaDB via LangChain loaders and splitters."""
 
-    def __init__(self, chroma_path: str = "./data/chroma") -> None:
-        self._client = chromadb.PersistentClient(path=chroma_path)
-        self._collection = self._client.get_or_create_collection(COLLECTION_NAME)
-        self._model = SentenceTransformer("all-MiniLM-L6-v2")
+    def __init__(self, collection_name: str = "enterprise_docs", persist_directory: str = "./data/chroma"):
+        self.collection_name = collection_name
+        self.persist_directory = persist_directory
+        self.splitter = RecursiveCharacterTextSplitter(
+            chunk_size=512,
+            chunk_overlap=50,
+            length_function=len,
+        )
+        self.vectorstore = Chroma(
+            collection_name=collection_name,
+            embedding_function=EMBEDDINGS,
+            persist_directory=persist_directory,
+        )
 
-    def _chunk_text(self, text: str) -> list[str]:
-        words = text.split()
-        chunks: list[str] = []
-        start = 0
-        while start < len(words):
-            end = start + CHUNK_SIZE
-            chunk = " ".join(words[start:end])
-            chunks.append(chunk)
-            start += CHUNK_SIZE - CHUNK_OVERLAP
-        return chunks
-
-    def ingest_text(
-        self,
-        text: str,
-        source_name: str,
-        metadata: Optional[dict] = None,
-    ) -> list[str]:
-        chunks = self._chunk_text(text)
-        ids: list[str] = []
-        documents: list[str] = []
-        metadatas: list[dict] = []
-        embeddings: list[list[float]] = []
-
-        base_meta = metadata or {}
-        timestamp = datetime.utcnow().isoformat()
-
-        for idx, chunk in enumerate(chunks):
-            chunk_id = str(uuid.uuid4())
-            ids.append(chunk_id)
-            documents.append(chunk)
-            metadatas.append(
-                {
-                    **base_meta,
-                    "source": source_name,
-                    "chunk_index": idx,
-                    "timestamp": timestamp,
-                }
-            )
-            embeddings.append(self._model.encode(chunk).tolist())
-
-        if ids:
-            self._collection.add(
-                ids=ids,
-                documents=documents,
-                metadatas=metadatas,
-                embeddings=embeddings,
-            )
+    def ingest_text(self, text: str, source_name: str, metadata: dict | None = None) -> list[str]:
+        """Chunk and embed raw text into ChromaDB."""
+        docs = self.splitter.create_documents(
+            [text],
+            metadatas=[{"source": source_name, "timestamp": str(time.time()), **(metadata or {})}],
+        )
+        ids = self.vectorstore.add_documents(docs)
         return ids
 
     def ingest_file(self, file_path: str) -> list[str]:
+        """Load and ingest a PDF, TXT, or other file."""
         path = Path(file_path)
-        if not path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
-
         if path.suffix.lower() == ".pdf":
-            import pdfplumber
-            text_parts: list[str] = []
-            with pdfplumber.open(str(path)) as pdf:
-                for page in pdf.pages:
-                    page_text = page.extract_text() or ""
-                    text_parts.append(page_text)
-            text = "\n".join(text_parts)
+            loader = PyPDFLoader(file_path)
+        elif path.suffix.lower() == ".txt":
+            loader = TextLoader(file_path)
         else:
-            text = path.read_text(encoding="utf-8")
+            loader = UnstructuredFileLoader(file_path)
+        raw_docs = loader.load()
+        docs = self.splitter.split_documents(raw_docs)
+        ids = self.vectorstore.add_documents(docs)
+        return ids
 
-        return self.ingest_text(text, source_name=path.name)
+    def get_vectorstore(self) -> Chroma:
+        return self.vectorstore

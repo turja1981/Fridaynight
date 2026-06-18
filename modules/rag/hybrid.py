@@ -1,52 +1,48 @@
 from __future__ import annotations
-from typing import Optional
-
 from rank_bm25 import BM25Okapi
-
 from .retrieval import VectorRetriever
 
-RRF_K = 60
-
-
 class HybridRetriever:
-    """Combines vector similarity and BM25 keyword search with RRF re-ranking."""
+    """Combines vector search with BM25 keyword search using Reciprocal Rank Fusion."""
 
-    def __init__(self, chroma_path: str = "./data/chroma") -> None:
-        self._vector = VectorRetriever(chroma_path=chroma_path)
+    def __init__(self, collection_name: str = "enterprise_docs", persist_directory: str = "./data/chroma"):
+        self.vector_retriever = VectorRetriever(collection_name, persist_directory)
+        self._corpus: list[str] = []
+        self._bm25: BM25Okapi | None = None
+
+    def _build_bm25(self, docs: list[str]) -> None:
+        self._corpus = docs
+        tokenized = [d.lower().split() for d in docs]
+        self._bm25 = BM25Okapi(tokenized)
+
+    def _rrf_score(self, rank: int, k: int = 60) -> float:
+        return 1.0 / (k + rank + 1)
 
     def retrieve(self, query: str, top_k: int = 5) -> list[dict]:
-        # Get vector results (fetch more candidates for re-ranking)
-        candidates = self._vector.retrieve(query, top_k=top_k * 3)
-        if not candidates:
+        """RRF fusion of vector and BM25 results."""
+        vector_results = self.vector_retriever.retrieve(query, top_k=top_k * 2)
+        if not vector_results:
             return []
 
-        # Build BM25 corpus from candidates
-        corpus = [c["content"].split() for c in candidates]
-        bm25 = BM25Okapi(corpus)
-        query_tokens = query.split()
-        bm25_scores = bm25.get_scores(query_tokens)
+        # Build BM25 index from retrieved corpus
+        corpus = [r["content"] for r in vector_results]
+        self._build_bm25(corpus)
 
-        # Build vector rank map
-        vector_ranks: dict[int, int] = {i: i for i in range(len(candidates))}
-        # Sort BM25 ranks
-        bm25_ranks: dict[int, int] = {
-            idx: rank
-            for rank, idx in enumerate(
-                sorted(range(len(bm25_scores)), key=lambda x: -bm25_scores[x])
-            )
-        }
+        bm25_scores = self._bm25.get_scores(query.lower().split()) if self._bm25 else []
 
-        # RRF fusion
-        rrf_scores: dict[int, float] = {}
-        for i in range(len(candidates)):
-            v_rank = vector_ranks.get(i, len(candidates))
-            b_rank = bm25_ranks.get(i, len(candidates))
-            rrf_scores[i] = 1.0 / (RRF_K + v_rank) + 1.0 / (RRF_K + b_rank)
+        # Combine using RRF
+        scores: dict[str, float] = {}
+        content_map: dict[str, dict] = {}
 
-        sorted_indices = sorted(rrf_scores, key=lambda x: -rrf_scores[x])
-        result: list[dict] = []
-        for idx in sorted_indices[:top_k]:
-            entry = dict(candidates[idx])
-            entry["rrf_score"] = rrf_scores[idx]
-            result.append(entry)
-        return result
+        for rank, result in enumerate(vector_results):
+            key = result["content"][:100]
+            scores[key] = scores.get(key, 0) + self._rrf_score(rank)
+            content_map[key] = result
+
+        for rank, (idx, _) in enumerate(sorted(enumerate(bm25_scores), key=lambda x: -x[1])):
+            if idx < len(corpus):
+                key = corpus[idx][:100]
+                scores[key] = scores.get(key, 0) + self._rrf_score(rank)
+
+        sorted_keys = sorted(scores, key=lambda k: -scores[k])
+        return [content_map[k] for k in sorted_keys[:top_k] if k in content_map]

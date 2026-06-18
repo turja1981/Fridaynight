@@ -1,115 +1,79 @@
 from __future__ import annotations
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.graph import StateGraph, END
+from langgraph.prebuilt import create_react_agent
+from typing import TypedDict, Annotated
+import operator
+from .tools import get_all_tools, data_query_tool, calculator_tool, web_search_tool, datetime_tool
 
-from .base_agent import BaseAgent
-from .tools import ToolRegistry
+class AgentState(TypedDict):
+    messages: Annotated[list, operator.add]
+    next_agent: str
+    task: str
 
+AGENT_CONFIGS = {
+    "research": {
+        "system": "You are a research specialist. Find information, search data, and provide comprehensive background analysis.",
+        "tools": [web_search_tool, data_query_tool, datetime_tool],
+    },
+    "analysis": {
+        "system": "You are a data analyst. Analyze numbers, compute statistics, identify patterns and anomalies.",
+        "tools": [calculator_tool, data_query_tool],
+    },
+    "customer_service": {
+        "system": "You are a customer service specialist. Respond empathetically, resolve issues, and escalate when needed.",
+        "tools": [data_query_tool, datetime_tool],
+    },
+    "domain_expert": {
+        "system": "You are a domain expert for enterprise business processes including insurance, banking, and manufacturing.",
+        "tools": get_all_tools(),
+    },
+}
 
-def _make_research_agent() -> BaseAgent:
-    registry = ToolRegistry()
-    tools = registry.get_tools_by_name(["web_search", "document_lookup", "datetime_tool"])
-    return BaseAgent(
-        name="research_agent",
-        system_prompt=(
-            "You are an expert research agent. Your job is to find accurate, comprehensive information "
-            "on any topic. Use web_search and document_lookup tools to gather evidence before responding. "
-            "Always cite your sources and provide structured, well-organized answers."
-        ),
-        tools=tools,
-    )
-
-
-def _make_analysis_agent() -> BaseAgent:
-    registry = ToolRegistry()
-    tools = registry.get_tools_by_name(["calculator", "data_query", "document_lookup"])
-    return BaseAgent(
-        name="analysis_agent",
-        system_prompt=(
-            "You are a data analysis expert. Analyze data, compute statistics, identify trends, "
-            "and provide actionable insights. Use the calculator for precise computations and "
-            "data_query to retrieve business data. Present findings clearly with numbers and percentages."
-        ),
-        tools=tools,
-    )
-
-
-def _make_customer_service_agent() -> BaseAgent:
-    registry = ToolRegistry()
-    tools = registry.get_tools_by_name(["data_query", "document_lookup", "datetime_tool"])
-    return BaseAgent(
-        name="customer_service_agent",
-        system_prompt=(
-            "You are a friendly and professional customer service representative. "
-            "Help customers with their queries about claims, policies, accounts, or orders. "
-            "Use data_query to look up customer records. Always be empathetic, clear, and solution-focused. "
-            "Escalate complex issues appropriately."
-        ),
-        tools=tools,
-    )
-
-
-def _make_data_agent() -> BaseAgent:
-    registry = ToolRegistry()
-    tools = registry.get_tools_by_name(["data_query", "calculator"])
-    return BaseAgent(
-        name="data_agent",
-        system_prompt=(
-            "You are a data retrieval and processing agent. Efficiently query databases, "
-            "compute aggregates, and return structured data. Focus on accuracy and speed. "
-            "Return data in JSON-friendly formats when possible."
-        ),
-        tools=tools,
-    )
-
+def _route_task(task: str) -> str:
+    task_lower = task.lower()
+    if any(w in task_lower for w in ["calculate", "compute", "analyze", "statistics", "number"]):
+        return "analysis"
+    if any(w in task_lower for w in ["customer", "complaint", "help", "support", "issue"]):
+        return "customer_service"
+    if any(w in task_lower for w in ["search", "find", "research", "what is", "who is"]):
+        return "research"
+    return "domain_expert"
 
 class AgentOrchestrator:
-    """Routes tasks to specialized agents and manages their execution."""
+    """Multi-agent supervisor that routes tasks to specialized LangGraph agents."""
 
-    _ROUTING_KEYWORDS: dict[str, list[str]] = {
-        "research_agent": ["research", "find", "search", "what is", "explain", "define", "history", "news"],
-        "analysis_agent": ["analyze", "calculate", "compare", "statistics", "trend", "metrics", "kpi", "performance"],
-        "customer_service_agent": ["claim", "policy", "account", "customer", "help", "support", "status", "complaint"],
-        "data_agent": ["data", "query", "fetch", "retrieve", "lookup", "get", "show", "list"],
-    }
+    def __init__(self, model: str = "claude-sonnet-4-6", anthropic_api_key: str = ""):
+        self.model = model
+        self.api_key = anthropic_api_key
+        self._agents: dict = {}
 
-    def __init__(self) -> None:
-        self._agents: dict[str, BaseAgent] = {
-            "research_agent": _make_research_agent(),
-            "analysis_agent": _make_analysis_agent(),
-            "customer_service_agent": _make_customer_service_agent(),
-            "data_agent": _make_data_agent(),
-        }
+    def _get_agent(self, name: str):
+        if name not in self._agents:
+            cfg = AGENT_CONFIGS[name]
+            llm = ChatAnthropic(model=self.model, api_key=self.api_key, max_tokens=2048)
+            self._agents[name] = create_react_agent(llm, tools=cfg["tools"])
+        return self._agents[name]
 
     def route(self, task: str) -> str:
-        """Pick best agent for task using keyword routing."""
-        task_lower = task.lower()
-        scores: dict[str, int] = {name: 0 for name in self._agents}
-        for agent_name, keywords in self._ROUTING_KEYWORDS.items():
-            for kw in keywords:
-                if kw in task_lower:
-                    scores[agent_name] += 1
-        best = max(scores, key=lambda k: scores[k])
-        # Default to research_agent if no match
-        if scores[best] == 0:
-            return "research_agent"
-        return best
+        return _route_task(task)
 
     def run(self, task: str, agent_type: str = "auto") -> dict:
-        """Run appropriate agent and return result with agent_used field."""
-        if agent_type == "auto":
-            agent_name = self.route(task)
-        elif agent_type in self._agents:
-            agent_name = agent_type
-        else:
-            agent_name = "research_agent"
+        """Route task to best agent and return result."""
+        chosen = agent_type if agent_type != "auto" else _route_task(task)
+        if chosen not in AGENT_CONFIGS:
+            chosen = "domain_expert"
 
-        agent = self._agents[agent_name]
-        result = agent.run(task)
-        result["agent_used"] = agent_name
-        return result
+        cfg = AGENT_CONFIGS[chosen]
+        agent = self._get_agent(chosen)
+        messages = [SystemMessage(content=cfg["system"]), HumanMessage(content=task)]
+        result = agent.invoke({"messages": messages})
+        final = result["messages"][-1].content
 
-    def list_agents(self) -> list[dict]:
-        """Return info about available agents."""
-        return [
-            {"name": name, "model": agent.model}
-            for name, agent in self._agents.items()
+        tool_calls = [
+            {"tool": m.name, "input": m.content}
+            for m in result["messages"]
+            if hasattr(m, "name") and m.name
         ]
+        return {"response": final, "agent_used": chosen, "tool_calls": tool_calls}
