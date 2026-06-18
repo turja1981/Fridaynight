@@ -1,12 +1,10 @@
 from __future__ import annotations
-from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage, SystemMessage
-from langgraph.prebuilt import create_react_agent
-from .tools import get_all_tools
-import time
+import anthropic
+from .tools import ToolRegistry
+
 
 class BaseAgent:
-    """ReAct agent built with LangGraph prebuilt create_react_agent."""
+    """ReAct agent using the raw Anthropic SDK with manual tool-use loop."""
 
     def __init__(
         self,
@@ -19,25 +17,67 @@ class BaseAgent:
     ):
         self.name = name
         self.system_prompt = system_prompt
-        self.model_name = model
-        llm = ChatAnthropic(model=model, api_key=anthropic_api_key, max_tokens=2048)
-        agent_tools = tools if tools is not None else get_all_tools()
-        self.graph = create_react_agent(llm, tools=agent_tools)
+        self.model = model
+        self.tools = tools if tools is not None else []
+        self.max_iterations = max_iterations
+        self.client = anthropic.Anthropic(api_key=anthropic_api_key)
+        self._registry = ToolRegistry()
 
     def run(self, user_message: str) -> dict:
-        """Run the agent and return response with metadata."""
-        t0 = time.time()
-        messages = [SystemMessage(content=self.system_prompt), HumanMessage(content=user_message)]
-        result = self.graph.invoke({"messages": messages})
-        final = result["messages"][-1].content
-        tool_calls = [
-            {"tool": m.name, "input": m.content}
-            for m in result["messages"]
-            if hasattr(m, "name") and m.name
-        ]
+        """Run the agent with tool-use loop and return response with metadata."""
+        messages: list[dict] = [{"role": "user", "content": user_message}]
+        tool_calls: list[dict] = []
+        iterations = 0
+        tokens_used = 0
+
+        while iterations < self.max_iterations:
+            iterations += 1
+            kwargs: dict = {
+                "model": self.model,
+                "max_tokens": 2048,
+                "system": self.system_prompt,
+                "messages": messages,
+            }
+            if self.tools:
+                kwargs["tools"] = self.tools
+
+            response = self.client.messages.create(**kwargs)
+            tokens_used += response.usage.input_tokens + response.usage.output_tokens
+
+            if response.stop_reason == "end_turn":
+                text = ""
+                for block in response.content:
+                    if block.type == "text":
+                        text = block.text
+                        break
+                return {
+                    "response": text,
+                    "agent": self.name,
+                    "tool_calls": tool_calls,
+                    "iterations": iterations,
+                    "tokens_used": tokens_used,
+                }
+
+            if response.stop_reason == "tool_use":
+                messages.append({"role": "assistant", "content": response.content})
+                tool_results = []
+                for block in response.content:
+                    if block.type == "tool_use":
+                        result = self._registry.execute(block.name, block.input)
+                        tool_calls.append({"tool": block.name, "input": block.input})
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": result,
+                        })
+                messages.append({"role": "user", "content": tool_results})
+            else:
+                break
+
         return {
-            "response": final,
+            "response": "",
             "agent": self.name,
             "tool_calls": tool_calls,
-            "latency_ms": round((time.time() - t0) * 1000, 2),
+            "iterations": iterations,
+            "tokens_used": tokens_used,
         }
