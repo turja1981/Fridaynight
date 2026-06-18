@@ -1,103 +1,73 @@
 from __future__ import annotations
+from dataclasses import dataclass, field
+from langchain_core.prompts import ChatPromptTemplate, FewShotChatMessagePromptTemplate
 
-
+@dataclass
 class PromptTemplate:
-    """A reusable prompt template with optional few-shot examples and CoT."""
-
-    def __init__(
-        self,
-        template: str,
-        few_shot_examples: list[dict] | None = None,
-        chain_of_thought: bool = False,
-    ) -> None:
-        self.template = template
-        self.few_shot_examples = few_shot_examples or []
-        self.chain_of_thought = chain_of_thought
+    """Structured prompt with optional few-shot examples and CoT prefix."""
+    name: str
+    template: str
+    variables: list[str] = field(default_factory=list)
+    few_shot_examples: list[dict] = field(default_factory=list)
+    chain_of_thought: bool = False
 
     def render(self, **kwargs) -> str:
-        """Render the template with provided variables."""
-        prompt = self.template.format(**kwargs)
-
-        if self.few_shot_examples:
-            examples_text = "\n\nExamples:\n"
-            for ex in self.few_shot_examples:
-                role = ex.get("role", "user")
-                content = ex.get("content", "")
-                examples_text += f"{role.capitalize()}: {content}\n"
-            prompt = examples_text.strip() + "\n\n" + prompt
-
+        result = self.template
         if self.chain_of_thought:
-            prompt += "\n\nLet's think step by step:"
+            result += "\n\nLet me think through this step by step:"
+        for k, v in kwargs.items():
+            result = result.replace(f"{{{k}}}", str(v))
+        return result
 
-        return prompt
+    def as_langchain_template(self) -> ChatPromptTemplate:
+        messages = []
+        if self.few_shot_examples:
+            example_prompt = ChatPromptTemplate.from_messages([("human", "{input}"), ("ai", "{output}")])
+            few_shot = FewShotChatMessagePromptTemplate(example_prompt=example_prompt, examples=self.few_shot_examples)
+            messages.append(few_shot)
+        messages.append(("human", self.template))
+        return ChatPromptTemplate.from_messages(messages)
 
-
-TEMPLATES: dict[str, PromptTemplate] = {
+PROMPT_TEMPLATES: dict[str, PromptTemplate] = {
     "SUMMARIZE": PromptTemplate(
-        template=(
-            "Please summarize the following text concisely, capturing the key points:\n\n"
-            "Text: {text}\n\n"
-            "Summary:"
-        ),
+        name="SUMMARIZE",
+        template="Summarize the following text in {max_words} words or less:\n\n{text}",
+        variables=["text", "max_words"],
+        chain_of_thought=False,
     ),
     "CLASSIFY": PromptTemplate(
-        template=(
-            "Classify the following text into one of these categories: {categories}\n\n"
-            "Text: {text}\n\n"
-            "Category:"
-        ),
-        chain_of_thought=True,
+        name="CLASSIFY",
+        template="Classify the following into one of these categories: {categories}\n\nText: {text}\n\nRespond with only the category name.",
+        variables=["text", "categories"],
+        few_shot_examples=[
+            {"input": "My car was stolen last night", "output": "Auto Theft"},
+            {"input": "Water damage from burst pipe", "output": "Property Damage"},
+        ],
     ),
     "EXTRACT_ENTITIES": PromptTemplate(
-        template=(
-            "Extract all named entities from the following text. "
-            "Return as JSON with keys: persons, organizations, locations, dates, amounts.\n\n"
-            "Text: {text}\n\n"
-            "Entities:"
-        ),
+        name="EXTRACT_ENTITIES",
+        template="Extract the following entities from this text: {entity_types}\n\nText: {text}\n\nReturn as JSON.",
+        variables=["text", "entity_types"],
+        chain_of_thought=True,
     ),
     "GENERATE_REPORT": PromptTemplate(
-        template=(
-            "Generate a professional {report_type} report based on the following data:\n\n"
-            "{data}\n\n"
-            "The report should include: executive summary, key findings, recommendations, and conclusion.\n\n"
-            "Report:"
-        ),
-    ),
-    "ANALYZE_DOCUMENT": PromptTemplate(
-        template=(
-            "Analyze the following document and provide:\n"
-            "1. Document type and purpose\n"
-            "2. Key information extracted\n"
-            "3. Action items or next steps\n"
-            "4. Risk assessment (if applicable)\n\n"
-            "Document:\n{document}\n\n"
-            "Analysis:"
-        ),
+        name="GENERATE_REPORT",
+        template="Generate a professional {report_type} report based on:\n\n{data}\n\nFormat with sections: Executive Summary, Key Findings, Recommendations.",
+        variables=["report_type", "data"],
         chain_of_thought=True,
     ),
     "CUSTOMER_SERVICE_RESPOND": PromptTemplate(
-        template=(
-            "You are a helpful customer service agent for {company}. "
-            "Respond to the following customer query professionally and empathetically.\n\n"
-            "Customer Query: {query}\n\n"
-            "Relevant Context: {context}\n\n"
-            "Response:"
-        ),
+        name="CUSTOMER_SERVICE_RESPOND",
+        template="As a {company} customer service representative, respond to:\n\nCustomer: {message}\n\nContext: {context}\n\nBe empathetic, concise, and solution-focused.",
+        variables=["company", "message", "context"],
         few_shot_examples=[
-            {
-                "role": "user",
-                "content": "Customer Query: When will my claim be processed?\nResponse: Thank you for reaching out. Your claim is currently under review and will be processed within 3-5 business days.",
-            }
+            {"input": "My claim is taking too long", "output": "I understand your frustration. Claim CLM-001 is currently in the review stage. I'm escalating this to a senior adjuster for priority processing."},
         ],
     ),
     "FRAUD_ANALYSIS": PromptTemplate(
-        template=(
-            "Analyze the following transaction/claim for potential fraud indicators.\n\n"
-            "Data: {data}\n\n"
-            "Provide: risk_score (0-100), fraud_indicators (list), recommended_action, confidence_level.\n\n"
-            "Analysis:"
-        ),
+        name="FRAUD_ANALYSIS",
+        template="Analyze this transaction/claim for fraud indicators:\n\n{data}\n\nIdentify: risk_score (0-1), red_flags (list), recommendation (APPROVE/REVIEW/REJECT).",
+        variables=["data"],
         chain_of_thought=True,
     ),
 }

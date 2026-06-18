@@ -1,77 +1,27 @@
 from __future__ import annotations
-import os
-
-import anthropic
-
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import HumanMessage
 
 class PromptOptimizer:
-    """Optimizes prompts using LLM-as-judge comparison."""
+    """A/B tests prompts using LLM-as-judge to find the best variant."""
 
-    def __init__(self) -> None:
-        self._client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+    def __init__(self, model: str = "claude-haiku-4-5-20251001", anthropic_api_key: str = ""):
+        self.llm = ChatAnthropic(model=model, api_key=anthropic_api_key, max_tokens=256)
 
-    def compare(
-        self,
-        prompt_a: str,
-        prompt_b: str,
-        test_inputs: list[str],
-    ) -> dict:
-        """Compare two prompts using LLM-as-judge on test inputs."""
-        scores_a = 0.0
-        scores_b = 0.0
-        evaluations: list[dict] = []
+    def compare(self, prompt_a: str, prompt_b: str, test_input: str) -> dict:
+        """Compare two prompt variants on a test input using LLM judge."""
+        response_a = self.llm.invoke([HumanMessage(content=prompt_a.replace("{input}", test_input))]).content
+        response_b = self.llm.invoke([HumanMessage(content=prompt_b.replace("{input}", test_input))]).content
 
-        for test_input in test_inputs[:5]:  # limit to 5 inputs
-            # Get response from prompt A
-            resp_a = self._client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=512,
-                messages=[{"role": "user", "content": prompt_a + "\n\n" + test_input}],
-            )
-            response_a = resp_a.content[0].text if resp_a.content else ""
+        judge_prompt = f"""Compare these two AI responses and pick the better one.
 
-            # Get response from prompt B
-            resp_b = self._client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=512,
-                messages=[{"role": "user", "content": prompt_b + "\n\n" + test_input}],
-            )
-            response_b = resp_b.content[0].text if resp_b.content else ""
+Response A: {response_a}
 
-            # Judge comparison
-            judge_prompt = (
-                f"You are an impartial AI judge. Compare these two responses to the same input.\n\n"
-                f"Input: {test_input}\n\n"
-                f"Response A:\n{response_a}\n\n"
-                f"Response B:\n{response_b}\n\n"
-                "Which response is better? Reply with ONLY 'A' or 'B' followed by a brief reason."
-            )
-            judge_resp = self._client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=128,
-                messages=[{"role": "user", "content": judge_prompt}],
-            )
-            verdict = judge_resp.content[0].text.strip() if judge_resp.content else "B"
+Response B: {response_b}
 
-            if verdict.startswith("A"):
-                scores_a += 1
-            else:
-                scores_b += 1
+Criteria: accuracy, clarity, helpfulness, conciseness.
+Reply with only: "A" or "B" and one sentence reason."""
 
-            evaluations.append(
-                {
-                    "input": test_input,
-                    "response_a": response_a[:200],
-                    "response_b": response_b[:200],
-                    "verdict": verdict[:100],
-                }
-            )
-
-        total = len(test_inputs[:5])
-        winner = "A" if scores_a > scores_b else "B"
-        return {
-            "winner": winner,
-            "score_a": scores_a / total if total > 0 else 0,
-            "score_b": scores_b / total if total > 0 else 0,
-            "evaluations": evaluations,
-        }
+        judgment = self.llm.invoke([HumanMessage(content=judge_prompt)]).content.strip()
+        winner = "A" if judgment.startswith("A") else "B"
+        return {"winner": winner, "judgment": judgment, "response_a": response_a, "response_b": response_b}

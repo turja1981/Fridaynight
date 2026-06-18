@@ -1,6 +1,5 @@
-from __future__ import annotations
-from .templates import PromptTemplate, TEMPLATES
+from .templates import PromptTemplate, PROMPT_TEMPLATES
 from .library import PromptLibrary
 from .optimizer import PromptOptimizer
 
-__all__ = ["PromptTemplate", "TEMPLATES", "PromptLibrary", "PromptOptimizer"]
+__all__ = ["PromptTemplate", "PROMPT_TEMPLATES", "PromptLibrary", "PromptOptimizer"]
