@@ -24,11 +24,12 @@ class TestModelRouter:
         assert model == "claude-opus-4-8"
 
     def test_routes_medium_to_sonnet(self):
-        model = self.router.route("process the insurance claim form")
+        # 25 words, no low/high keywords → medium → sonnet
+        model = self.router.route("please review this insurance claim " * 5)
         assert model == "claude-sonnet-4-6"
 
     def test_long_input_routes_to_opus(self):
-        long_task = "process this request " * 25  # >200 tokens
+        long_task = "process this insurance claim request " * 51  # >200 words
         model = self.router.route(long_task)
         assert model == "claude-opus-4-8"
 
