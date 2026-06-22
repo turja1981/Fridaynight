@@ -13,6 +13,7 @@ _INJECTION_PATTERNS: list[str] = [
 _HARMFUL_KEYWORDS: list[str] = [
     "bomb making",
     "synthesize drugs",
+    "how to hack",
     "hack into",
     "steal credentials",
     "phishing template",
