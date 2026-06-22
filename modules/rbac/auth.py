@@ -8,7 +8,7 @@ from passlib.context import CryptContext
 
 from .models import Role, TokenData, User
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+_pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 
 ALGORITHM = "HS256"
 DEFAULT_EXPIRE_HOURS = 24
