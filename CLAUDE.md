@@ -42,7 +42,7 @@ FastAPI (backend/main.py)
     └── /api/v1/mcp/        → JSON-RPC 2.0 tool server
 ```
 
-**AI Stack**: LangChain LCEL · LangGraph · Claude (Haiku/Sonnet) · ChromaDB · HuggingFace Embeddings
+**AI Stack**: LangChain LCEL · LangGraph · Claude (Haiku/Sonnet) · Qdrant · HuggingFace Embeddings
 **Evaluation**: RAGAS (retrieval quality) · DeepEval (output quality, optional)
 **Observability**: LangSmith tracing (zero-code, env vars only) · structlog JSON logs
 **Memory**: Mem0 (cloud or local) with in-process dict fallback
@@ -54,7 +54,7 @@ FastAPI (backend/main.py)
 ### `modules/rag/`
 | Class | Import | Purpose |
 |---|---|---|
-| `DocumentIngester` | `from modules.rag.ingestion import DocumentIngester` | Chunk + embed text/PDF/files into ChromaDB |
+| `DocumentIngester` | `from modules.rag.ingestion import DocumentIngester` | Chunk + embed text/PDF/files into Qdrant |
 | `VectorRetriever` | `from modules.rag.retrieval import VectorRetriever` | Semantic search (top-k + min_score filter) |
 | `HybridRetriever` | `from modules.rag.hybrid import HybridRetriever` | Vector + BM25 fused via RRF (better recall) |
 | `RagPipeline` | `from modules.rag.pipeline import RagPipeline` | End-to-end RAG chain (ingest + run) |
@@ -80,7 +80,7 @@ result = pipeline.run("What is the claim status for CLM-001?")
 # returns: {"answer", "context", "sources", "retrieval_time_ms"}
 ```
 
-**ChromaDB location**: `./data/chroma` (env: `CHROMA_PATH`)
+**Qdrant location**: `./data/qdrant` (env: `QDRANT_PATH`)
 **Embedding model**: `all-MiniLM-L6-v2` (lazy-loaded, no download at import time)
 **Chunk size**: 512 tokens, overlap 50
 
@@ -302,7 +302,7 @@ Copy `.env.example` to `.env` and fill:
 ANTHROPIC_API_KEY=sk-ant-...       # Required — Claude API
 JWT_SECRET=change-this             # Required — JWT signing
 ACTIVE_ADAPTER=insurance_claims    # Domain: insurance_claims|banking|manufacturing|retail
-CHROMA_PATH=./data/chroma          # Vector DB path
+QDRANT_PATH=./data/qdrant          # Vector DB path
 
 # LangSmith tracing (optional but recommended for demo)
 LANGCHAIN_TRACING_V2=true

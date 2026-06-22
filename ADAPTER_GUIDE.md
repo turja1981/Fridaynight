@@ -396,6 +396,6 @@ The demo lives or dies on data quality. Use realistic Indian names, ₹ amounts,
 domain IDs (CLM-2024-001, PRN-2024-002, BATCH-MFG-42), and plausible values.
 Evaluators notice when sample data is lorem ipsum.
 
-**One collection per domain in ChromaDB.**
+**One collection per domain in Qdrant.**
 Pass `collection_name="<domain>_docs"` to `DocumentIngester` and `HybridRetriever`
 so domains don't share vector space and retrieve each other's documents.
