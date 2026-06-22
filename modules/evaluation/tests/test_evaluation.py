@@ -2,7 +2,13 @@ from __future__ import annotations
 import pytest
 from unittest.mock import patch, MagicMock
 
-deepeval = pytest.importorskip("deepeval", reason="deepeval not available")
+try:
+    import deepeval  # noqa: F401
+    HAS_DEEPEVAL = True
+except ImportError:
+    HAS_DEEPEVAL = False
+
+pytestmark = pytest.mark.skipif(not HAS_DEEPEVAL, reason="deepeval not available")
 
 
 def test_rag_evaluator_single():
