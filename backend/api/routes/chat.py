@@ -16,12 +16,19 @@ _audit = AuditLogger(db_path="./data/audit.db")
 
 router = APIRouter(tags=["chat"])
 
-_orchestrator = AgentOrchestrator(
-    model="claude-sonnet-4-6",
-    anthropic_api_key=settings.anthropic_api_key,
-    mem0_api_key=settings.mem0_api_key,
-)
+_orchestrator: AgentOrchestrator | None = None
 _guardrails = GuardrailsPipeline()
+
+
+def _get_orchestrator() -> AgentOrchestrator:
+    global _orchestrator
+    if _orchestrator is None:
+        _orchestrator = AgentOrchestrator(
+            model="claude-sonnet-4-6",
+            anthropic_api_key=settings.anthropic_api_key,
+            mem0_api_key=settings.mem0_api_key,
+        )
+    return _orchestrator
 _kpi_tracker = KPITracker()
 _prompt_library = PromptLibrary()
 _lang_detector = LanguageDetector()
@@ -45,7 +52,7 @@ async def chat(req: ChatRequest):
     system_prompt = _prompt_library.get_system_prompt(req.adapter)
     model = _model_router.route(req.message)
     user_id = req.user_id or session_id
-    result = _orchestrator.run(guard_result["safe_text"], user_id=user_id)
+    result = _get_orchestrator().run(guard_result["safe_text"], user_id=user_id)
 
     output_guard = _guardrails.process_output(result["response"])
     latency_ms = round((time.time() - t0) * 1000, 2)
@@ -136,7 +143,8 @@ async def chat_stream(req: ChatRequest):
         _kpi_tracker.track_call(agent_used, latency_ms, len(full_response.split()), True, model)
 
         # Persist to Mem0
-        _orchestrator._memory and _orchestrator._memory.add(
+        orch = _get_orchestrator()
+        orch._memory and orch._memory.add(
             [{"role": "user", "content": req.message}, {"role": "assistant", "content": full_response}],
             user_id=user_id,
         )

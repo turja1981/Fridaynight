@@ -7,10 +7,13 @@ router = APIRouter(tags=["kpi"])
 _dashboard = KPIDashboard()
 _tracker = KPITracker()
 
+
 @router.get("/kpi/dashboard")
-async def get_dashboard():
-    return _dashboard.get_dashboard_data(settings.active_adapter)
+async def get_dashboard(domain: str = settings.active_adapter):
+    data = _dashboard.get_dashboard_data(domain)
+    return {"domain": domain, **data}
+
 
 @router.get("/kpi/metrics")
 async def get_metrics():
-    return _tracker.get_all_stats()
+    return {"metrics": _tracker.get_all_stats()}

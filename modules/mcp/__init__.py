@@ -1,5 +1,4 @@
 from __future__ import annotations
-from .server import MCPServer
-from .client import MCPClient
+from .server import mcp_router
 
-__all__ = ["MCPServer", "MCPClient"]
+__all__ = ["mcp_router"]

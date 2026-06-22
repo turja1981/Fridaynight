@@ -73,8 +73,8 @@ class TestAuth:
 
 
 class TestChat:
-    @patch("backend.api.routes.chat.AgentOrchestrator")
-    def test_chat_blocked_input(self, mock_orch, client):
+    @patch("backend.api.routes.chat._get_orchestrator")
+    def test_chat_blocked_input(self, mock_get_orch, client):
         """Test that unsafe input is blocked by guardrails."""
         response = client.post(
             "/api/v1/chat",
@@ -84,11 +84,11 @@ class TestChat:
         data = response.json()
         assert data.get("blocked") is True
 
-    @patch("backend.api.routes.chat.AgentOrchestrator")
-    def test_chat_safe_input(self, mock_orch_class, client):
+    @patch("backend.api.routes.chat._get_orchestrator")
+    def test_chat_safe_input(self, mock_get_orch, client):
         """Test that safe input goes through the agent."""
         mock_orch = MagicMock()
-        mock_orch_class.return_value = mock_orch
+        mock_get_orch.return_value = mock_orch
         mock_orch.run.return_value = {
             "response": "Here is the claim status: pending.",
             "agent_used": "customer_service_agent",
