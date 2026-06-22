@@ -15,7 +15,7 @@ def _get_pipeline() -> RagPipeline:
     global _pipeline
     if _pipeline is None:
         _pipeline = RagPipeline(
-            persist_directory=settings.chroma_path,
+            persist_directory=settings.qdrant_path,
             anthropic_api_key=settings.anthropic_api_key,
         )
     return _pipeline
@@ -24,7 +24,7 @@ def _get_pipeline() -> RagPipeline:
 def _get_ingester() -> DocumentIngester:
     global _ingester
     if _ingester is None:
-        _ingester = DocumentIngester(persist_directory=settings.chroma_path)
+        _ingester = DocumentIngester(persist_directory=settings.qdrant_path)
     return _ingester
 
 

@@ -1,8 +1,11 @@
 from __future__ import annotations
-from langchain_chroma import Chroma
+from langchain_qdrant import QdrantVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams
 
 _EMBEDDINGS: HuggingFaceEmbeddings | None = None
+_EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 output dimension
 
 def _get_embeddings() -> HuggingFaceEmbeddings:
     global _EMBEDDINGS
@@ -11,13 +14,19 @@ def _get_embeddings() -> HuggingFaceEmbeddings:
     return _EMBEDDINGS
 
 class VectorRetriever:
-    """Semantic retriever backed by ChromaDB via LangChain."""
+    """Semantic retriever backed by Qdrant via LangChain."""
 
-    def __init__(self, collection_name: str = "enterprise_docs", persist_directory: str = "./data/chroma"):
-        self.vectorstore = Chroma(
+    def __init__(self, collection_name: str = "enterprise_docs", persist_directory: str = "./data/qdrant"):
+        self._client = QdrantClient(path=persist_directory)
+        if not self._client.collection_exists(collection_name):
+            self._client.create_collection(
+                collection_name=collection_name,
+                vectors_config=VectorParams(size=_EMBEDDING_DIM, distance=Distance.COSINE),
+            )
+        self.vectorstore = QdrantVectorStore(
+            client=self._client,
             collection_name=collection_name,
-            embedding_function=_get_embeddings(),
-            persist_directory=persist_directory,
+            embedding=_get_embeddings(),
         )
 
     def retrieve(self, query: str, top_k: int = 5, min_score: float = 0.3) -> list[dict]:

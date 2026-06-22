@@ -5,9 +5,8 @@ import pytest
 
 
 def _mock_vectorstore(docs=None):
-    """Return a mock LangChain Chroma vectorstore."""
+    """Return a mock LangChain QdrantVectorStore."""
     store = MagicMock()
-    sample_docs = docs or [Document(page_content="chunk one", metadata={"source": "test.txt"})]
     store.add_documents.return_value = ["id-1", "id-2"]
     store.similarity_search_with_relevance_scores.return_value = [
         (Document(page_content="chunk one", metadata={"source": "test.txt"}), 0.9),
@@ -17,13 +16,22 @@ def _mock_vectorstore(docs=None):
     return store
 
 
+def _mock_qdrant_client():
+    """Return a mock QdrantClient with collection_exists=True."""
+    client = MagicMock()
+    client.collection_exists.return_value = True
+    return client
+
+
 # ── DocumentIngester ──────────────────────────────────────────────────────────
 
 class TestDocumentIngester:
     @patch("modules.rag.ingestion._get_embeddings")
-    @patch("modules.rag.ingestion.Chroma")
-    def test_ingest_text_returns_ids(self, mock_chroma_cls, mock_embeddings):
-        mock_chroma_cls.return_value = _mock_vectorstore()
+    @patch("modules.rag.ingestion.QdrantVectorStore")
+    @patch("modules.rag.ingestion.QdrantClient")
+    def test_ingest_text_returns_ids(self, mock_client_cls, mock_vs_cls, mock_embeddings):
+        mock_client_cls.return_value = _mock_qdrant_client()
+        mock_vs_cls.return_value = _mock_vectorstore()
         mock_embeddings.return_value = MagicMock()
 
         from modules.rag.ingestion import DocumentIngester
@@ -33,11 +41,13 @@ class TestDocumentIngester:
         assert len(ids) > 0
 
     @patch("modules.rag.ingestion._get_embeddings")
-    @patch("modules.rag.ingestion.Chroma")
-    def test_ingest_empty_text_returns_empty(self, mock_chroma_cls, mock_embeddings):
+    @patch("modules.rag.ingestion.QdrantVectorStore")
+    @patch("modules.rag.ingestion.QdrantClient")
+    def test_ingest_empty_text_returns_empty(self, mock_client_cls, mock_vs_cls, mock_embeddings):
         store = _mock_vectorstore()
         store.add_documents.return_value = []
-        mock_chroma_cls.return_value = store
+        mock_client_cls.return_value = _mock_qdrant_client()
+        mock_vs_cls.return_value = store
         mock_embeddings.return_value = MagicMock()
 
         from modules.rag.ingestion import DocumentIngester
@@ -46,9 +56,11 @@ class TestDocumentIngester:
         assert isinstance(ids, list)
 
     @patch("modules.rag.ingestion._get_embeddings")
-    @patch("modules.rag.ingestion.Chroma")
-    def test_ingest_file_not_found_raises(self, mock_chroma_cls, mock_embeddings):
-        mock_chroma_cls.return_value = _mock_vectorstore()
+    @patch("modules.rag.ingestion.QdrantVectorStore")
+    @patch("modules.rag.ingestion.QdrantClient")
+    def test_ingest_file_not_found_raises(self, mock_client_cls, mock_vs_cls, mock_embeddings):
+        mock_client_cls.return_value = _mock_qdrant_client()
+        mock_vs_cls.return_value = _mock_vectorstore()
         mock_embeddings.return_value = MagicMock()
 
         from modules.rag.ingestion import DocumentIngester
@@ -61,9 +73,11 @@ class TestDocumentIngester:
 
 class TestVectorRetriever:
     @patch("modules.rag.retrieval._get_embeddings")
-    @patch("modules.rag.retrieval.Chroma")
-    def test_retrieve_returns_results(self, mock_chroma_cls, mock_embeddings):
-        mock_chroma_cls.return_value = _mock_vectorstore()
+    @patch("modules.rag.retrieval.QdrantVectorStore")
+    @patch("modules.rag.retrieval.QdrantClient")
+    def test_retrieve_returns_results(self, mock_client_cls, mock_vs_cls, mock_embeddings):
+        mock_client_cls.return_value = _mock_qdrant_client()
+        mock_vs_cls.return_value = _mock_vectorstore()
         mock_embeddings.return_value = MagicMock()
 
         from modules.rag.retrieval import VectorRetriever
@@ -76,9 +90,11 @@ class TestVectorRetriever:
             assert "metadata" in r
 
     @patch("modules.rag.retrieval._get_embeddings")
-    @patch("modules.rag.retrieval.Chroma")
-    def test_retrieve_with_context_returns_string(self, mock_chroma_cls, mock_embeddings):
-        mock_chroma_cls.return_value = _mock_vectorstore()
+    @patch("modules.rag.retrieval.QdrantVectorStore")
+    @patch("modules.rag.retrieval.QdrantClient")
+    def test_retrieve_with_context_returns_string(self, mock_client_cls, mock_vs_cls, mock_embeddings):
+        mock_client_cls.return_value = _mock_qdrant_client()
+        mock_vs_cls.return_value = _mock_vectorstore()
         mock_embeddings.return_value = MagicMock()
 
         from modules.rag.retrieval import VectorRetriever
@@ -88,11 +104,13 @@ class TestVectorRetriever:
         assert len(ctx) > 0
 
     @patch("modules.rag.retrieval._get_embeddings")
-    @patch("modules.rag.retrieval.Chroma")
-    def test_retrieve_empty_returns_empty(self, mock_chroma_cls, mock_embeddings):
+    @patch("modules.rag.retrieval.QdrantVectorStore")
+    @patch("modules.rag.retrieval.QdrantClient")
+    def test_retrieve_empty_returns_empty(self, mock_client_cls, mock_vs_cls, mock_embeddings):
         store = MagicMock()
         store.similarity_search_with_relevance_scores.return_value = []
-        mock_chroma_cls.return_value = store
+        mock_client_cls.return_value = _mock_qdrant_client()
+        mock_vs_cls.return_value = store
         mock_embeddings.return_value = MagicMock()
 
         from modules.rag.retrieval import VectorRetriever
@@ -105,9 +123,11 @@ class TestVectorRetriever:
 
 class TestHybridRetriever:
     @patch("modules.rag.retrieval._get_embeddings")
-    @patch("modules.rag.retrieval.Chroma")
-    def test_hybrid_retrieve_returns_list(self, mock_chroma_cls, mock_embeddings):
-        mock_chroma_cls.return_value = _mock_vectorstore()
+    @patch("modules.rag.retrieval.QdrantVectorStore")
+    @patch("modules.rag.retrieval.QdrantClient")
+    def test_hybrid_retrieve_returns_list(self, mock_client_cls, mock_vs_cls, mock_embeddings):
+        mock_client_cls.return_value = _mock_qdrant_client()
+        mock_vs_cls.return_value = _mock_vectorstore()
         mock_embeddings.return_value = MagicMock()
 
         from modules.rag.hybrid import HybridRetriever
@@ -121,13 +141,20 @@ class TestHybridRetriever:
 class TestRagPipeline:
     @patch("modules.rag.ingestion._get_embeddings")
     @patch("modules.rag.retrieval._get_embeddings")
-    @patch("modules.rag.ingestion.Chroma")
-    @patch("modules.rag.retrieval.Chroma")
+    @patch("modules.rag.ingestion.QdrantVectorStore")
+    @patch("modules.rag.retrieval.QdrantVectorStore")
+    @patch("modules.rag.ingestion.QdrantClient")
+    @patch("modules.rag.retrieval.QdrantClient")
     @patch("modules.rag.pipeline.ChatAnthropic")
-    def test_pipeline_ingest(self, mock_llm, mock_chroma_r, mock_chroma_i, mock_emb_r, mock_emb_i):
+    def test_pipeline_ingest(
+        self, mock_llm, mock_client_r, mock_client_i,
+        mock_vs_r, mock_vs_i, mock_emb_r, mock_emb_i,
+    ):
         store = _mock_vectorstore()
-        mock_chroma_i.return_value = store
-        mock_chroma_r.return_value = store
+        mock_client_i.return_value = _mock_qdrant_client()
+        mock_client_r.return_value = _mock_qdrant_client()
+        mock_vs_i.return_value = store
+        mock_vs_r.return_value = store
         mock_emb_i.return_value = MagicMock()
         mock_emb_r.return_value = MagicMock()
         mock_llm.return_value = MagicMock()
@@ -141,13 +168,20 @@ class TestRagPipeline:
 
     @patch("modules.rag.ingestion._get_embeddings")
     @patch("modules.rag.retrieval._get_embeddings")
-    @patch("modules.rag.ingestion.Chroma")
-    @patch("modules.rag.retrieval.Chroma")
+    @patch("modules.rag.ingestion.QdrantVectorStore")
+    @patch("modules.rag.retrieval.QdrantVectorStore")
+    @patch("modules.rag.ingestion.QdrantClient")
+    @patch("modules.rag.retrieval.QdrantClient")
     @patch("modules.rag.pipeline.ChatAnthropic")
-    def test_pipeline_run_returns_keys(self, mock_llm, mock_chroma_r, mock_chroma_i, mock_emb_r, mock_emb_i):
+    def test_pipeline_run_returns_keys(
+        self, mock_llm, mock_client_r, mock_client_i,
+        mock_vs_r, mock_vs_i, mock_emb_r, mock_emb_i,
+    ):
         store = _mock_vectorstore()
-        mock_chroma_i.return_value = store
-        mock_chroma_r.return_value = store
+        mock_client_i.return_value = _mock_qdrant_client()
+        mock_client_r.return_value = _mock_qdrant_client()
+        mock_vs_i.return_value = store
+        mock_vs_r.return_value = store
         mock_emb_i.return_value = MagicMock()
         mock_emb_r.return_value = MagicMock()
         llm_instance = MagicMock()

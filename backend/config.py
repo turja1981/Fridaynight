@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
     anthropic_api_key: str = ""
     jwt_secret: str = "dev-secret-change-in-prod-32chars!!"
-    chroma_path: str = "./data/chroma"
+    qdrant_path: str = "./data/qdrant"
     active_adapter: str = "insurance_claims"
     log_level: str = "INFO"
     whisper_api_key: str = ""

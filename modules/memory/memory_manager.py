@@ -16,10 +16,10 @@ def _build_mem0_config(anthropic_api_key: str) -> dict:
             "config": {"model": "all-MiniLM-L6-v2"},
         },
         "vector_store": {
-            "provider": "chroma",
+            "provider": "qdrant",
             "config": {
                 "collection_name": "agent_memory",
-                "path": os.getenv("CHROMA_PATH", "./data/chroma"),
+                "path": os.getenv("QDRANT_PATH", "./data/qdrant"),
             },
         },
     }

@@ -23,8 +23,8 @@ env/
 .coverage
 htmlcov/
 
-# ChromaDB / data
-data/chroma/
+# Qdrant / data
+data/qdrant/
 
 # IDEs
 .idea/

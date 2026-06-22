@@ -2,11 +2,14 @@ from __future__ import annotations
 from pathlib import Path
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, UnstructuredFileLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_chroma import Chroma
+from langchain_qdrant import QdrantVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams
 import time
 
 _EMBEDDINGS: HuggingFaceEmbeddings | None = None
+_EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 output dimension
 
 def _get_embeddings() -> HuggingFaceEmbeddings:
     global _EMBEDDINGS
@@ -15,9 +18,9 @@ def _get_embeddings() -> HuggingFaceEmbeddings:
     return _EMBEDDINGS
 
 class DocumentIngester:
-    """Ingests documents into ChromaDB via LangChain loaders and splitters."""
+    """Ingests documents into Qdrant via LangChain loaders and splitters."""
 
-    def __init__(self, collection_name: str = "enterprise_docs", persist_directory: str = "./data/chroma"):
+    def __init__(self, collection_name: str = "enterprise_docs", persist_directory: str = "./data/qdrant"):
         self.collection_name = collection_name
         self.persist_directory = persist_directory
         self.splitter = RecursiveCharacterTextSplitter(
@@ -25,14 +28,20 @@ class DocumentIngester:
             chunk_overlap=50,
             length_function=len,
         )
-        self.vectorstore = Chroma(
+        self._client = QdrantClient(path=persist_directory)
+        if not self._client.collection_exists(collection_name):
+            self._client.create_collection(
+                collection_name=collection_name,
+                vectors_config=VectorParams(size=_EMBEDDING_DIM, distance=Distance.COSINE),
+            )
+        self.vectorstore = QdrantVectorStore(
+            client=self._client,
             collection_name=collection_name,
-            embedding_function=_get_embeddings(),
-            persist_directory=persist_directory,
+            embedding=_get_embeddings(),
         )
 
     def ingest_text(self, text: str, source_name: str, metadata: dict | None = None) -> list[str]:
-        """Chunk and embed raw text into ChromaDB."""
+        """Chunk and embed raw text into Qdrant."""
         docs = self.splitter.create_documents(
             [text],
             metadatas=[{"source": source_name, "timestamp": str(time.time()), **(metadata or {})}],
@@ -54,5 +63,5 @@ class DocumentIngester:
         ids = self.vectorstore.add_documents(docs)
         return ids
 
-    def get_vectorstore(self) -> Chroma:
+    def get_vectorstore(self) -> QdrantVectorStore:
         return self.vectorstore

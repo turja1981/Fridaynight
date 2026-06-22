@@ -5,7 +5,7 @@ from .retrieval import VectorRetriever
 class HybridRetriever:
     """Combines vector search with BM25 keyword search using Reciprocal Rank Fusion."""
 
-    def __init__(self, collection_name: str = "enterprise_docs", persist_directory: str = "./data/chroma"):
+    def __init__(self, collection_name: str = "enterprise_docs", persist_directory: str = "./data/qdrant"):
         self.vector_retriever = VectorRetriever(collection_name, persist_directory)
         self._corpus: list[str] = []
         self._bm25: BM25Okapi | None = None

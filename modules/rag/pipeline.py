@@ -23,7 +23,7 @@ class RagPipeline:
     def __init__(
         self,
         collection_name: str = "enterprise_docs",
-        persist_directory: str = "./data/chroma",
+        persist_directory: str = "./data/qdrant",
         model: str = "claude-sonnet-4-6",
         anthropic_api_key: str = "",
     ):
