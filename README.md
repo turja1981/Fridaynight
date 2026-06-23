@@ -41,6 +41,65 @@ curl http://localhost:8000/health
 
 ---
 
+## Hackathon Day — Automated Use Case Bootstrap
+
+When you receive the problem statement (Word doc / PDF), the platform can configure itself automatically:
+
+### Step 1 — Paste the use case
+
+Open `data/usecase.md` and replace the placeholder with the problem statement text (copy-paste from Word).
+
+```
+data/usecase.md   ← paste 500-1000 words here
+```
+
+### Step 2 — Run one command
+
+```bash
+python scripts/bootstrap_from_usecase.py
+```
+
+Claude reads the use case and **generates all required files automatically**:
+
+| Generated file | What it contains |
+|---|---|
+| `adapters/<domain>/adapter.py` | System prompt, KPI definitions, 5 synthetic sample records, 8-10 sample questions |
+| `data/seeds/<domain>/sample_faq.txt` | 400-word domain FAQ for RAG knowledge base |
+| `modules/kpi/metrics.py` | New domain KPI entry added automatically |
+| `.env` | `ACTIVE_ADAPTER` updated to the new domain |
+
+The script also ingests the FAQ into Qdrant so RAG returns real results immediately.
+
+### Step 3 — Review and verify
+
+```bash
+# Check generated adapter
+cat adapters/<domain>/adapter.py
+
+# Run all tests
+pytest modules/ backend/ -v --tb=short
+
+# Start server and test a question
+uvicorn backend.main:app --reload
+curl -s -X POST http://localhost:8000/api/v1/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message": "What is the status of record DOMAIN-2024-001?"}' | python -m json.tool
+```
+
+### Options
+
+```bash
+# Preview what will be generated without writing files
+python scripts/bootstrap_from_usecase.py --dry-run
+
+# Use a different input file
+python scripts/bootstrap_from_usecase.py --usecase path/to/problem.md
+```
+
+> **Total time from Word doc to running demo: under 15 minutes.**
+
+---
+
 ## Architecture
 
 ```
