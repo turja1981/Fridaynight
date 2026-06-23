@@ -86,14 +86,165 @@ Set `PREFERRED_PROVIDER=openai` or `PREFERRED_PROVIDER=google` in `.env` to swit
 
 ## Domain Adapter System
 
-Switch the entire AI persona with one environment variable:
+The adapter is the only file you need to touch to re-purpose this platform for any use case. Swapping adapters is a single env-var change — no framework code is modified.
+
+### Built-in adapters
+
+| `ACTIVE_ADAPTER` | Domain | Primary KPIs |
+|---|---|---|
+| `insurance_claims` | Insurance Claims Processing | auto_approval_rate, fraud_detection_rate, avg_processing_time_hrs |
+| `banking` | Banking Customer Service | query_resolution_rate, fraud_alerts_caught, avg_response_time |
+| `manufacturing` | Manufacturing Quality Control | defect_detection_rate, quality_score, downtime_reduction |
+| `retail` | Retail & E-Commerce | recommendation_accuracy, cart_conversion, nps_score |
+
+Set the active adapter in `.env`:
 
 ```bash
-ACTIVE_ADAPTER=insurance_claims   # or: banking | manufacturing | retail
+ACTIVE_ADAPTER=insurance_claims
 ```
 
-Each adapter defines the system prompt, KPIs, sample data, and suggested tools.  
-See [ADAPTER_GUIDE.md](ADAPTER_GUIDE.md) to create a new domain adapter in minutes.
+---
+
+### Configuring a New Adapter (Step-by-Step)
+
+#### Step 1 — Create the adapter file
+
+```bash
+mkdir -p adapters/<your_domain>
+touch adapters/<your_domain>/__init__.py
+```
+
+#### Step 2 — Write the adapter class
+
+```python
+# adapters/healthcare/adapter.py
+from __future__ import annotations
+from adapters.base import BaseAdapter
+
+SAMPLE_RECORDS = [
+    {
+        "patient_id": "PRN-2024-001",
+        "name": "Meera Iyer",
+        "age": 45,
+        "diagnosis": "Type 2 Diabetes",
+        "risk_score": "Medium",
+    },
+]
+
+class HealthcareAdapter(BaseAdapter):
+    domain_name = "Healthcare Patient Management"
+
+    system_prompt = """You are a clinical AI assistant for TCS HealthAI Platform.
+
+Responsibilities:
+- Retrieve and summarise patient records
+- Flag high-risk patients needing urgent follow-up
+- Answer clinical protocol questions
+
+You must NEVER prescribe medications or make a definitive diagnosis.
+
+Response format:
+  Patient Summary: <2-sentence overview>
+  Risk Level: Low / Medium / High
+  Recommended Action: <next step>
+  Confidence: <percentage>
+
+Regulatory framework: DISHA, ABDM data standards."""
+
+    kpi_definitions = {
+        "diagnosis_accuracy":       "% AI-suggested diagnoses confirmed by physician",
+        "high_risk_recall":         "% high-risk patients flagged before deterioration",
+        "avg_summary_time_sec":     "Seconds to generate a discharge summary",
+        "patient_wait_reduction":   "% reduction in outpatient wait time",
+        "medication_error_reduction": "% drop in medication errors after AI reconciliation",
+    }
+
+    suggested_tools = ["data_query", "calculator", "datetime_tool", "web_search"]
+
+    sample_questions = [
+        "Show summary for patient PRN-2024-001",
+        "Which patients are high-risk and due for follow-up this week?",
+        "What is the hospital protocol for CKD Stage 2 management?",
+        "मेरे मरीज़ PRN-2024-001 की रिपोर्ट दिखाओ",   # Hindi demo
+    ]
+
+    def get_config(self) -> dict:
+        return {
+            "domain": self.domain_name,
+            "system_prompt": self.system_prompt,
+            "sample_data": {r["patient_id"]: r for r in SAMPLE_RECORDS},
+            "context": "\n".join(
+                f"Patient {r['patient_id']}: {r['name']}, {r['age']}y, risk={r['risk_score']}"
+                for r in SAMPLE_RECORDS
+            ),
+        }
+```
+
+#### Step 3 — Activate it
+
+```bash
+# .env
+ACTIVE_ADAPTER=healthcare
+```
+
+#### Step 4 — Add domain KPIs to the metrics module
+
+```python
+# modules/kpi/metrics.py — inside MetricsCollector.get_domain_kpis()
+elif domain == "healthcare":
+    kpis["diagnosis_accuracy"]         = round(random.uniform(0.88, 0.96), 3)
+    kpis["high_risk_recall"]           = round(random.uniform(0.82, 0.94), 3)
+    kpis["avg_summary_time_sec"]       = round(random.uniform(4.0, 8.5), 1)
+    kpis["patient_wait_reduction"]     = round(random.uniform(0.25, 0.45), 3)
+    kpis["medication_error_reduction"] = round(random.uniform(0.30, 0.55), 3)
+```
+
+#### Step 5 — Seed the RAG knowledge base
+
+Create `data/seeds/healthcare/sample_faq.txt` with 300–500 words of domain FAQ (policy rules, procedures, KPI definitions), then ingest:
+
+```bash
+python scripts/ingest_all_seeds.py
+```
+
+#### Step 6 — Register the adapter (dynamic loading)
+
+```python
+# backend/adapters_registry.py
+ADAPTER_MAP = {
+    ...
+    "healthcare": "adapters.healthcare.adapter.HealthcareAdapter",
+}
+```
+
+#### Step 7 — Verify
+
+```bash
+python -c "
+from adapters.healthcare.adapter import HealthcareAdapter
+a = HealthcareAdapter()
+cfg = a.get_config()
+print('Domain:', cfg['domain'])
+print('Records:', len(cfg['sample_data']))
+print('KPIs:', list(a.kpi_definitions.keys()))
+"
+```
+
+### Adapter Checklist
+
+```
+[ ] adapters/<domain>/__init__.py created
+[ ] adapters/<domain>/adapter.py created with domain_name, system_prompt, kpi_definitions
+[ ] sample_data has 5–10 realistic synthetic records (Indian names, ₹ amounts, local IDs)
+[ ] sample_questions has 8–10 queries covering all agent types (include one in Hindi)
+[ ] get_config() returns: domain, system_prompt, sample_data (dict), context (str)
+[ ] ACTIVE_ADAPTER=<domain> set in .env
+[ ] KPI branch added to modules/kpi/metrics.py
+[ ] data/seeds/<domain>/sample_faq.txt created and ingested
+[ ] pytest passes — all green
+```
+
+See [ADAPTER_GUIDE.md](ADAPTER_GUIDE.md) for the complete reference including domain-specific tools.
 
 ---
 
