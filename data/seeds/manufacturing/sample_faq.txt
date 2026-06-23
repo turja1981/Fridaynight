@@ -1,0 +1,67 @@
+TCS ManufactureIQ — Smart Factory Quality Control Knowledge Base
+================================================================
+
+QUALITY MANAGEMENT SYSTEM
+--------------------------
+Q: What quality standards does the platform monitor?
+A: The platform enforces ISO 9001:2015 (Quality Management), ISO 14001:2015 (Environmental), and IS 2062 (structural steel standards for Indian manufacturing). AI checks are aligned with Six Sigma DMAIC methodology (Define, Measure, Analyse, Improve, Control).
+
+Q: What is the current defect detection rate?
+A: Our computer vision models achieve 96.8% defect detection accuracy on surface defects, dimensional variance, and assembly errors. False positive rate: 3.2%. Human review is triggered for borderline cases (confidence score 70–85%).
+
+PRODUCTION MONITORING
+---------------------
+Q: How does real-time quality monitoring work?
+A: Cameras mounted at 12 inspection points capture images every 200ms. ResNet-50 model classifies: OK (green), Warning (yellow, <2mm deviation), Reject (red, >2mm or surface crack). Rejected parts are automatically diverted to QC bin via servo-actuated track.
+
+Q: What is OEE (Overall Equipment Effectiveness)?
+A: OEE = Availability × Performance × Quality.
+- Availability: machine uptime / planned production time
+- Performance: actual output / theoretical maximum output
+- Quality: good units / total units produced
+Target OEE: ≥85% (world-class standard). Current AI-assisted OEE: 89.4%.
+
+DEFECT CATEGORIES
+-----------------
+- BATCH-DEFECT-SURFACE: scratches, dents, paint chips — cosmetic only, auto-rework
+- BATCH-DEFECT-DIM: dimensional error >0.5mm — requires engineering review
+- BATCH-DEFECT-ASSM: wrong assembly sequence — production halt, root cause analysis
+- BATCH-DEFECT-MAT: wrong material grade — 100% batch rejection, supplier escalation
+
+PREDICTIVE MAINTENANCE
+-----------------------
+Q: How does predictive maintenance work?
+A: Vibration sensors (Bosch BMA456) on 48 motors + CNC spindles collect data at 1kHz. LSTM model predicts bearing failure 72 hours in advance with 91% accuracy. Alerts are sent to maintenance team with recommended action and parts needed.
+
+Q: What triggers an emergency shutdown?
+A: Automatic shutdown when: (1) temperature sensor >85°C on motor, (2) vibration amplitude >12mm/s RMS, (3) pressure drop >15% on hydraulic lines, (4) smoke detector activated. Safety interlocks comply with IS 13947 (Indian standard for switchgear).
+
+BATCH TRACKING
+--------------
+Q: How are production batches tracked?
+A: Each batch has a unique ID: BATCH-MFG-{year}-{sequential number}. QR codes printed on batch labels link to full genealogy: raw material lot, machine ID, operator shift, inspection timestamps, and quality score. Traceability per IS 15875 (food-grade) or IS 2062 (structural).
+
+SAMPLE BATCH RECORDS
+---------------------
+BATCH-MFG-2024-001: Steel brackets, 500 units, Quality Score 98.2/100, 6 rejects
+BATCH-MFG-2024-002: Aluminium castings, 200 units, Quality Score 96.7/100, 7 rejects
+BATCH-MFG-2024-003: PCB assemblies, 1000 units, Quality Score 99.1/100, 9 rejects
+
+DOWNTIME ANALYSIS
+-----------------
+Common downtime causes (Pareto):
+1. Planned maintenance: 45% (acceptable, scheduled)
+2. Material shortage: 22% (supply chain alert triggered)
+3. Tool change: 18% (within SOP limits)
+4. Unplanned breakdown: 15% (AI targets <10%)
+
+Current downtime reduction vs baseline: 34%
+Target: 40% by end of FY2024-25
+
+COMPLIANCE & CERTIFICATIONS
+-----------------------------
+- BIS (Bureau of Indian Standards) certification for all products
+- ISO 45001:2018 Occupational Health & Safety
+- REACH compliance for chemical substances
+- EPR (Extended Producer Responsibility) for e-waste
+- Factory Act 1948 compliance (shift hours, safety equipment)

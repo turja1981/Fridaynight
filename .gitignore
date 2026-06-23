@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Qdrant / data
+data/qdrant/
+
+# IDEs
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.next/

@@ -1,0 +1,62 @@
+TCS BankAssist — Retail Banking Knowledge Base
+===============================================
+
+ACCOUNT MANAGEMENT
+------------------
+Q: How do I open a savings account?
+A: Visit any branch with: Aadhaar card (for KYC), PAN card, passport-size photograph, and initial deposit (minimum ₹1,000 for regular savings, ₹10,000 for Privilege account). You can also open digitally via our app using Video KYC per RBI Circular RBI/2019-20/170.
+
+Q: What is the minimum balance requirement?
+A: Urban branches: ₹10,000 (regular), ₹5,000 (Janaadhaar). Semi-urban: ₹5,000. Rural: ₹2,500. Zero-balance accounts available under PMJDY (Pradhan Mantri Jan Dhan Yojana).
+
+TRANSACTIONS & LIMITS
+----------------------
+Q: What is the daily UPI transaction limit?
+A: NPCI-mandated UPI limit is ₹1 lakh per transaction, ₹5 lakh per day. For verified merchants (e.g., hospitals, government), limit is ₹5 lakh per transaction. UPI Lite for transactions below ₹500 (offline mode).
+
+Q: What are the NEFT/RTGS timings?
+A: NEFT: Available 24×7 (since RBI December 2019 circular). RTGS: 7:00 AM to 6:00 PM on weekdays (minimum ₹2 lakh). IMPS: 24×7, up to ₹5 lakh per transaction. All settled in T+0.
+
+LOANS & CREDIT
+--------------
+Q: How is the home loan interest rate calculated?
+A: Home loans are linked to RBI Repo Rate (currently 6.50%) plus bank spread. Our standard home loan rate: Repo + 2.65% = 9.15% p.a. (floating). Fixed rate: 9.75% for 5 years. EMI for ₹50 lakh at 9.15% over 20 years: ₹45,268/month.
+
+Q: What is the credit score requirement for a personal loan?
+A: Minimum CIBIL score of 700 for personal loans up to ₹5 lakh; 750 for loans above ₹5 lakh. Processing fee: 2% of loan amount. Disbursal within 4 hours for pre-approved customers (existing account holders >2 years).
+
+FRAUD PREVENTION
+----------------
+Q: How do I report a fraudulent transaction?
+A: Call 1800-XXX-FRAUD within 3 hours to freeze your account. File a complaint at cybercrime.gov.in (National Cyber Crime Reporting Portal). Under RBI guidelines, you are not liable if reported within 3 days. The bank must credit the amount within 10 working days.
+
+Q: What is two-factor authentication?
+A: All transactions above ₹5,000 require OTP (One-Time Password) sent to your registered mobile. We also use device binding and geo-velocity checks — if you log in from a new city within 30 minutes, additional verification is triggered.
+
+DIGITAL BANKING
+---------------
+Q: How do I activate net banking?
+A: Visit branch or ATM to set Customer ID and transaction password. Download our app (available on iOS/Android). Activate via Debit Card + registered mobile OTP. MPIN setup required for mobile banking.
+
+RBI COMPLIANCE
+--------------
+Our operations comply with:
+- RBI Master Direction on KYC (2016, updated 2023)
+- Payment and Settlement Systems Act, 2007
+- IT Act 2000 and CERT-In guidelines
+- Aadhaar-based e-KYC (UIDAI framework)
+- FATF AML/CFT recommendations
+
+CURRENT RATES (as of 2024)
+---------------------------
+- Savings account interest: 3.5% p.a. (up to ₹1 lakh), 4.0% (above ₹1 lakh)
+- FD rates: 7.0% (1 year), 7.25% (2 years), 7.5% (3-5 years)
+- Senior citizen FD: +0.50% additional
+- PPF: 7.1% (government-declared annually)
+
+AI QUERY RESOLUTION STATS
+---------------------------
+Query resolution rate: 94.3% (first contact resolution)
+Average response time: 8 seconds
+Fraud alerts accuracy: 97.1%
+Escalation rate: 5.7% (to human agent)
