@@ -25,13 +25,13 @@ class TestMCPServer:
     def test_tools_list_has_expected_tools(self, client):
         response = client.post("/mcp/tools/list")
         tools = {t["name"] for t in response.json()["result"]["tools"]}
-        assert "calculator" in tools
+        assert "calculator_tool" in tools
         assert "datetime_tool" in tools
 
     def test_calculator_tool_call(self, client):
         response = client.post(
             "/mcp/tools/call",
-            json={"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "calculator", "arguments": {"expression": "2 + 2"}}, "id": 1},
+            json={"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "calculator_tool", "arguments": {"expression": "2 + 2"}}, "id": 1},
         )
         assert response.status_code == 200
         data = response.json()
