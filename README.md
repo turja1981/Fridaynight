@@ -392,7 +392,61 @@ See [CLAUDE.md](CLAUDE.md) for the full 10-step guide and module API reference.
 
 ---
 
-## Docker
+## Windows 11 Setup (16 GB RAM)
+
+All components run natively on Windows. No WSL or Docker required.
+
+### Prerequisites
+
+| Tool | Version | Download |
+|---|---|---|
+| Python | 3.11.x | https://python.org/downloads — tick **"Add to PATH"** |
+| Node.js | 18 LTS or 20 LTS | https://nodejs.org |
+| Git | any | https://git-scm.com |
+
+### One-time setup
+
+Open **PowerShell as Administrator**, then:
+
+```powershell
+# Allow local scripts to run (one-time)
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+# Clone and enter the project
+git clone https://github.com/turja1981/Fridaynight.git
+cd Fridaynight
+
+# Run the setup script (installs Python + Node deps, creates .env, creates data dirs)
+.\setup.ps1
+```
+
+Then open `.env` in Notepad and set `ANTHROPIC_API_KEY=sk-ant-...`.
+
+### Start the platform
+
+```bat
+start.bat
+```
+
+Two new console windows open — backend on `:8000`, frontend on `:5173`.  
+Open http://localhost:5173 and login with `admin / admin123`.
+
+> **PowerShell alternative:** `.\start.ps1`
+
+### Known Windows notes
+
+| Topic | Detail |
+|---|---|
+| First run | HuggingFace model (`all-MiniLM-L6-v2`, ~90 MB) downloads automatically to `%USERPROFILE%\.cache\huggingface` |
+| PDF ingestion | Works via `pdfplumber` (no extra steps) |
+| DOCX/HTML ingestion | Requires `pip install unstructured python-magic-bin` (optional, not needed for the demo) |
+| Antivirus | Add the project folder to Windows Defender exclusions if Qdrant file writes are slow |
+| Port conflicts | Backend: 8000, Frontend: 5173 — change in `.env` / `vite.config.js` if needed |
+| RAM usage | ~2-3 GB at idle (Python + Node + Qdrant in-memory index). 16 GB is comfortable |
+
+---
+
+## Docker (alternative)
 
 ```bash
 docker-compose up --build

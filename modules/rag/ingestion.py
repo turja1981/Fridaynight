@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from langchain_community.document_loaders import PyPDFLoader, TextLoader, UnstructuredFileLoader
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_qdrant import QdrantVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -52,12 +52,20 @@ class DocumentIngester:
     def ingest_file(self, file_path: str) -> list[str]:
         """Load and ingest a PDF, TXT, or other file."""
         path = Path(file_path)
-        if path.suffix.lower() == ".pdf":
+        suffix = path.suffix.lower()
+        if suffix == ".pdf":
             loader = PyPDFLoader(file_path)
-        elif path.suffix.lower() == ".txt":
-            loader = TextLoader(file_path)
+        elif suffix in (".txt", ".md"):
+            loader = TextLoader(file_path, encoding="utf-8")
         else:
-            loader = UnstructuredFileLoader(file_path)
+            # UnstructuredFileLoader requires libmagic (not available on Windows by default).
+            # Fall back to TextLoader for unsupported types; install `unstructured` + `python-magic-bin`
+            # on Windows if you need .docx / .html / etc. support.
+            try:
+                from langchain_community.document_loaders import UnstructuredFileLoader
+                loader = UnstructuredFileLoader(file_path)
+            except (ImportError, Exception):
+                loader = TextLoader(file_path, encoding="utf-8", autodetect_encoding=True)
         raw_docs = loader.load()
         docs = self.splitter.split_documents(raw_docs)
         ids = self.vectorstore.add_documents(docs)
