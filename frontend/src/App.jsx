@@ -1,3 +1,4 @@
+'use client'
 import React, { useState } from 'react'
 import { Hexagon, MessageSquare, LayoutDashboard, LogOut, ChevronDown } from 'lucide-react'
 import { useAuth } from './hooks/useAuth.js'

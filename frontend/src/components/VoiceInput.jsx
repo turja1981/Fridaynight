@@ -1,3 +1,4 @@
+'use client'
 import React, { useState, useRef, useCallback } from 'react'
 import { Mic, MicOff, Loader2, Square } from 'lucide-react'
 import { transcribeVoice } from '../api/endpoints.js'

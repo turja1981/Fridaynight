@@ -1,3 +1,4 @@
+'use client'
 import React, { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { X, Upload, FileText, Image, CheckCircle, AlertCircle, Loader2, RotateCcw } from 'lucide-react'
