@@ -58,3 +58,56 @@ class TestModelRouter:
         assert "tokens" in entry
         assert "cost_usd" in entry
         assert entry["cost_usd"] > 0
+
+    # ── multi-provider routing ─────────────────────────────────────────────
+
+    def test_route_with_provider_anthropic_low(self):
+        provider, model = self.router.route_with_provider("hello", provider="anthropic")
+        assert provider == "anthropic"
+        assert model == "claude-haiku-4-5-20251001"
+
+    def test_route_with_provider_anthropic_high(self):
+        provider, model = self.router.route_with_provider(
+            "analyze and synthesize", provider="anthropic"
+        )
+        assert provider == "anthropic"
+        assert model == "claude-opus-4-8"
+
+    def test_route_with_provider_openai_low(self):
+        provider, model = self.router.route_with_provider("hello", provider="openai")
+        assert provider == "openai"
+        assert model == "gpt-4o-mini"
+
+    def test_route_with_provider_openai_high(self):
+        provider, model = self.router.route_with_provider(
+            "analyze and synthesize", provider="openai"
+        )
+        assert provider == "openai"
+        assert model == "gpt-4o"
+
+    def test_route_with_provider_google_low(self):
+        provider, model = self.router.route_with_provider("hello", provider="google")
+        assert provider == "google"
+        assert model == "gemini-1.5-flash"
+
+    def test_route_with_provider_google_high(self):
+        provider, model = self.router.route_with_provider(
+            "analyze and synthesize", provider="google"
+        )
+        assert provider == "google"
+        assert model == "gemini-1.5-pro"
+
+    def test_route_with_provider_unknown_falls_back_to_anthropic_models(self):
+        provider, model = self.router.route_with_provider("hello", provider="unknown")
+        assert provider == "unknown"
+        assert "claude" in model
+
+    def test_openai_model_cost_tracked(self):
+        self.router.track_usage("gpt-4o-mini", 1000)
+        report = self.router.get_cost_report()
+        assert report["gpt-4o-mini"]["cost_usd"] > 0
+
+    def test_google_model_cost_tracked(self):
+        self.router.track_usage("gemini-1.5-pro", 1000)
+        report = self.router.get_cost_report()
+        assert report["gemini-1.5-pro"]["cost_usd"] > 0

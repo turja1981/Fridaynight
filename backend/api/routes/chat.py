@@ -9,6 +9,7 @@ from modules.kpi import KPITracker
 from modules.prompts import PromptLibrary
 from modules.multilingual import LanguageDetector
 from modules.model_router import ModelRouter
+from modules.model_router.llm_factory import create_llm
 from modules.audit import AuditLogger
 import time, uuid, json
 
@@ -99,20 +100,20 @@ async def chat_stream(req: ChatRequest):
             yield f"data: {json.dumps({'type': 'error', 'message': 'Request blocked by safety filter'})}\n\n"
             return
 
-        model = _model_router.route(req.message)
+        provider, model = _model_router.route_with_provider(
+            req.message, provider=settings.preferred_provider
+        )
+        api_key = {
+            "openai": settings.openai_api_key,
+            "google": settings.google_api_key,
+        }.get(provider, settings.anthropic_api_key)
         system_prompt = _prompt_library.get_system_prompt(req.adapter)
 
-        from langchain_anthropic import ChatAnthropic
         from langchain_core.messages import HumanMessage, SystemMessage
         from modules.agents.tools import get_all_tools
         from langgraph.prebuilt import create_react_agent
 
-        llm = ChatAnthropic(
-            model=model,
-            api_key=settings.anthropic_api_key,
-            max_tokens=1024,
-            streaming=True,
-        )
+        llm = create_llm(provider, model, api_key=api_key, max_tokens=1024, streaming=True)
         agent = create_react_agent(llm, tools=get_all_tools())
         messages = [SystemMessage(content=system_prompt), HumanMessage(content=guard_result["safe_text"])]
 
@@ -149,7 +150,7 @@ async def chat_stream(req: ChatRequest):
             user_id=user_id,
         )
 
-        yield f"data: {json.dumps({'type': 'done', 'metadata': {'agent_used': agent_used, 'model_used': model, 'latency_ms': latency_ms, 'tool_calls': tool_calls, 'session_id': session_id, 'language_detected': lang}})}\n\n"
+        yield f"data: {json.dumps({'type': 'done', 'metadata': {'agent_used': agent_used, 'provider': provider, 'model_used': model, 'latency_ms': latency_ms, 'tool_calls': tool_calls, 'session_id': session_id, 'language_detected': lang}})}\n\n"
 
     return StreamingResponse(
         generate(),

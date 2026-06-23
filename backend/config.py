@@ -15,5 +15,9 @@ class Settings(BaseSettings):
     langchain_project: str = "tcs-hackathon-enterprise-ai"
     # Mem0
     mem0_api_key: str = ""
+    # Multi-provider LLM support
+    openai_api_key: str = ""
+    google_api_key: str = ""
+    preferred_provider: str = "anthropic"  # anthropic | openai | google
 
 settings = Settings()
